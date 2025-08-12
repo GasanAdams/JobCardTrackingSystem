@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -54,6 +54,9 @@ import {
   Menu,
   Sun,
   Moon,
+  Timer,
+  Play,
+  Square,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import Image from "next/image"
@@ -104,6 +107,13 @@ const statusIcons = {
   cancelled: XCircle,
 }
 
+const autoRefreshOptions = [
+  { value: "off", label: "Off", ms: 0 },
+  { value: "2min", label: "2 minutes", ms: 2 * 60 * 1000 },
+  { value: "5min", label: "5 minutes", ms: 5 * 60 * 1000 },
+  { value: "10min", label: "10 minutes", ms: 10 * 60 * 1000 },
+]
+
 export default function JobCardTrackingSystem() {
   const [jobs, setJobs] = useState<JobCard[]>([])
   const [filteredJobs, setFilteredJobs] = useState<JobCard[]>([])
@@ -116,6 +126,9 @@ export default function JobCardTrackingSystem() {
   const [isLoading, setIsLoading] = useState(true)
   const [lastSync, setLastSync] = useState<Date | null>(null)
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState("off")
+  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null)
+  const [nextRefresh, setNextRefresh] = useState<Date | null>(null)
   const { theme, setTheme } = useTheme()
 
   const [newJob, setNewJob] = useState({
@@ -160,7 +173,42 @@ export default function JobCardTrackingSystem() {
     filterJobs()
   }, [jobs, searchTerm, statusFilter, priorityFilter, departmentFilter])
 
-  const loadJobs = () => {
+  // Auto refresh functionality
+  useEffect(() => {
+    if (refreshInterval) {
+      clearInterval(refreshInterval)
+    }
+
+    const selectedOption = autoRefreshOptions.find((option) => option.value === autoRefresh)
+    if (selectedOption && selectedOption.ms > 0) {
+      const interval = setInterval(() => {
+        loadJobs()
+        setNextRefresh(new Date(Date.now() + selectedOption.ms))
+      }, selectedOption.ms)
+
+      setRefreshInterval(interval)
+      setNextRefresh(new Date(Date.now() + selectedOption.ms))
+    } else {
+      setNextRefresh(null)
+    }
+
+    return () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+      }
+    }
+  }, [autoRefresh])
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+      }
+    }
+  }, [refreshInterval])
+
+  const loadJobs = useCallback(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
@@ -173,9 +221,9 @@ export default function JobCardTrackingSystem() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
-  const saveJobs = (updatedJobs: JobCard[]) => {
+  const saveJobs = useCallback((updatedJobs: JobCard[]) => {
     try {
       const data: JobData = {
         jobs: updatedJobs,
@@ -190,13 +238,13 @@ export default function JobCardTrackingSystem() {
     } catch (error) {
       console.error("Error saving jobs:", error)
     }
-  }
+  }, [])
 
-  const generateJobId = () => {
+  const generateJobId = useCallback(() => {
     const existingIds = jobs.map((job) => Number.parseInt(job.id.replace("JOB-", ""))).filter((id) => !isNaN(id))
     const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0
     return `JOB-${String(maxId + 1).padStart(3, "0")}`
-  }
+  }, [jobs])
 
   const addJob = () => {
     if (!newJob.title.trim()) return
@@ -321,6 +369,17 @@ export default function JobCardTrackingSystem() {
     return { statusData, priorityData }
   }
 
+  const formatTimeUntilRefresh = () => {
+    if (!nextRefresh) return ""
+    const now = new Date()
+    const diff = nextRefresh.getTime() - now.getTime()
+    if (diff <= 0) return "Refreshing..."
+
+    const minutes = Math.floor(diff / 60000)
+    const seconds = Math.floor((diff % 60000) / 1000)
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`
+  }
+
   const stats = getStats()
   const { statusData, priorityData } = getChartData()
   const departments = [...new Set(jobs.map((job) => job.department).filter(Boolean))]
@@ -351,6 +410,32 @@ export default function JobCardTrackingSystem() {
             </div>
 
             <div className="flex items-center space-x-2">
+              {/* Auto Refresh Controls */}
+              <div className="hidden md:flex items-center space-x-2">
+                <Select value={autoRefresh} onValueChange={setAutoRefresh}>
+                  <SelectTrigger
+                    className={`w-[140px] carbon-btn-secondary ${autoRefresh !== "off" ? "auto-refresh-active" : ""}`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Timer className="h-4 w-4" />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="carbon-card">
+                    {autoRefreshOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center space-x-2">
+                          {option.value === "off" ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                          <span>{option.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {nextRefresh && <div className="text-xs text-muted-foreground">Next: {formatTimeUntilRefresh()}</div>}
+              </div>
+
               {lastSync && (
                 <div className="hidden md:flex items-center space-x-2 text-xs text-muted-foreground">
                   <span>Last sync: {lastSync.toLocaleTimeString()}</span>
@@ -523,6 +608,38 @@ export default function JobCardTrackingSystem() {
                       <SheetDescription>Filter jobs and access quick actions</SheetDescription>
                     </SheetHeader>
                     <div className="space-y-4 mt-6">
+                      {/* Mobile Auto Refresh */}
+                      <div>
+                        <Label htmlFor="mobile-auto-refresh">Auto Refresh</Label>
+                        <Select value={autoRefresh} onValueChange={setAutoRefresh}>
+                          <SelectTrigger className={`${autoRefresh !== "off" ? "auto-refresh-active" : ""}`}>
+                            <div className="flex items-center space-x-2">
+                              <Timer className="h-4 w-4" />
+                              <SelectValue />
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {autoRefreshOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <div className="flex items-center space-x-2">
+                                  {option.value === "off" ? (
+                                    <Square className="h-3 w-3" />
+                                  ) : (
+                                    <Play className="h-3 w-3" />
+                                  )}
+                                  <span>{option.label}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {nextRefresh && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Next refresh: {formatTimeUntilRefresh()}
+                          </div>
+                        )}
+                      </div>
+
                       <div>
                         <Label htmlFor="mobile-search">Search</Label>
                         <div className="relative">
