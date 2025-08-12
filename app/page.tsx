@@ -15,6 +15,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -31,6 +41,8 @@ import {
   Moon,
   Sun,
   Download,
+  Trash2,
+  Edit,
 } from "lucide-react"
 import {
   Area,
@@ -210,6 +222,8 @@ export default function JobCardTrackingSystem() {
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all")
   const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [deleteJobId, setDeleteJobId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [newJob, setNewJob] = useState({
     title: "",
     description: "",
@@ -292,6 +306,34 @@ export default function JobCardTrackingSystem() {
     setJobs((prevJobs) =>
       prevJobs.map((job) => (job.id === jobId ? { ...job, status: newStatus, updatedAt: new Date() } : job)),
     )
+  }
+
+  const deleteJob = async (jobId: string) => {
+    setIsDeleting(true)
+
+    // Simulate API call delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId))
+    setDeleteJobId(null)
+    setIsDeleting(false)
+
+    // Show success message (you could implement a toast notification here)
+    console.log(`Job ${jobId} deleted successfully`)
+  }
+
+  const handleDeleteClick = (jobId: string) => {
+    setDeleteJobId(jobId)
+  }
+
+  const confirmDelete = () => {
+    if (deleteJobId) {
+      deleteJob(deleteJobId)
+    }
+  }
+
+  const cancelDelete = () => {
+    setDeleteJobId(null)
   }
 
   const createJob = () => {
@@ -412,6 +454,8 @@ export default function JobCardTrackingSystem() {
       }
     })
   }
+
+  const jobToDelete = jobs.find((job) => job.id === deleteJobId)
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -540,6 +584,41 @@ export default function JobCardTrackingSystem() {
             </Dialog>
           </div>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!deleteJobId} onOpenChange={() => setDeleteJobId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Job Card</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{jobToDelete?.title}"? This action cannot be undone and will
+                permanently remove the job card and all its data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={cancelDelete} disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="loading-spinner mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Job
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -965,7 +1044,7 @@ export default function JobCardTrackingSystem() {
                 return (
                   <Card
                     key={job.id}
-                    className={`relative ${isOverdue ? "border-red-300 bg-red-50 dark:bg-red-900/20" : ""}`}
+                    className={`relative job-card-hover ${isOverdue ? "border-red-300 bg-red-50 dark:bg-red-900/20" : ""}`}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
@@ -973,9 +1052,11 @@ export default function JobCardTrackingSystem() {
                           <CardTitle className="text-lg">{job.title}</CardTitle>
                           <CardDescription className="text-sm">{job.id}</CardDescription>
                         </div>
-                        <Badge variant="outline" className={`${priorityConfig[job.priority].color} text-white`}>
-                          {priorityConfig[job.priority].label}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`${priorityConfig[job.priority].color} text-white`}>
+                            {priorityConfig[job.priority].label}
+                          </Badge>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -1030,6 +1111,23 @@ export default function JobCardTrackingSystem() {
                           Overdue
                         </div>
                       )}
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <Button variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
+                          <Edit className="w-4 h-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteClick(job.id)}
+                          className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 )
@@ -1087,6 +1185,19 @@ export default function JobCardTrackingSystem() {
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
                           </Select>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteClick(job.id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )
