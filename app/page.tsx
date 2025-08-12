@@ -217,7 +217,26 @@ const priorityConfig = {
 }
 
 export default function JobCardTrackingSystem() {
-  const [jobs, setJobs] = useState<JobCard[]>(initialJobs)
+  const [jobs, setJobs] = useState<JobCard[]>(() => {
+    if (typeof window !== "undefined") {
+      const savedJobs = localStorage.getItem("job-cards")
+      if (savedJobs) {
+        try {
+          const parsedJobs = JSON.parse(savedJobs)
+          return parsedJobs.map((job: any) => ({
+            ...job,
+            createdAt: new Date(job.createdAt),
+            updatedAt: new Date(job.updatedAt),
+            dueDate: new Date(job.dueDate),
+          }))
+        } catch (error) {
+          console.error("Error parsing saved jobs:", error)
+          return initialJobs
+        }
+      }
+    }
+    return initialJobs
+  })
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all")
   const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all")
@@ -251,6 +270,11 @@ export default function JobCardTrackingSystem() {
 
     return () => clearInterval(interval)
   }, [])
+
+  // Save jobs to localStorage whenever jobs change
+  useEffect(() => {
+    localStorage.setItem("job-cards", JSON.stringify(jobs))
+  }, [jobs])
 
   // Export functionality
   const exportToCSV = () => {
@@ -303,9 +327,14 @@ export default function JobCardTrackingSystem() {
   })
 
   const updateJobStatus = (jobId: string, newStatus: JobStatus) => {
-    setJobs((prevJobs) =>
-      prevJobs.map((job) => (job.id === jobId ? { ...job, status: newStatus, updatedAt: new Date() } : job)),
-    )
+    setJobs((prevJobs) => {
+      const updatedJobs = prevJobs.map((job) =>
+        job.id === jobId ? { ...job, status: newStatus, updatedAt: new Date() } : job,
+      )
+      // Save to localStorage immediately
+      localStorage.setItem("job-cards", JSON.stringify(updatedJobs))
+      return updatedJobs
+    })
   }
 
   const deleteJob = async (jobId: string) => {
@@ -314,11 +343,17 @@ export default function JobCardTrackingSystem() {
     // Simulate API call delay
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId))
+    setJobs((prevJobs) => {
+      const updatedJobs = prevJobs.filter((job) => job.id !== jobId)
+      // Save to localStorage immediately
+      localStorage.setItem("job-cards", JSON.stringify(updatedJobs))
+      return updatedJobs
+    })
+
     setDeleteJobId(null)
     setIsDeleting(false)
 
-    // Show success message (you could implement a toast notification here)
+    // Show success message
     console.log(`Job ${jobId} deleted successfully`)
   }
 
@@ -357,7 +392,13 @@ export default function JobCardTrackingSystem() {
         .filter(Boolean),
     }
 
-    setJobs((prevJobs) => [...prevJobs, job])
+    setJobs((prevJobs) => {
+      const updatedJobs = [...prevJobs, job]
+      // Save to localStorage immediately
+      localStorage.setItem("job-cards", JSON.stringify(updatedJobs))
+      return updatedJobs
+    })
+
     setNewJob({
       title: "",
       description: "",
