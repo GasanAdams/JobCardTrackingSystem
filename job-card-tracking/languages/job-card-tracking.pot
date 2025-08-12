@@ -1,0 +1,273 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Job Card Tracking System 1.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-01-01 12:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Job Card Tracking System"
+msgstr ""
+
+msgid "Job Tracking"
+msgstr ""
+
+msgid "All Jobs"
+msgstr ""
+
+msgid "Analytics"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Create Job Card"
+msgstr ""
+
+msgid "Toggle Theme"
+msgstr ""
+
+msgid "Total Jobs"
+msgstr ""
+
+msgid "Pending"
+msgstr ""
+
+msgid "In Progress"
+msgstr ""
+
+msgid "Completed"
+msgstr ""
+
+msgid "Overdue"
+msgstr ""
+
+msgid "Search jobs..."
+msgstr ""
+
+msgid "All Statuses"
+msgstr ""
+
+msgid "All Priorities"
+msgstr ""
+
+msgid "All Departments"
+msgstr ""
+
+msgid "Low"
+msgstr ""
+
+msgid "Medium"
+msgstr ""
+
+msgid "High"
+msgstr ""
+
+msgid "Urgent"
+msgstr ""
+
+msgid "On Hold"
+msgstr ""
+
+msgid "Cancelled"
+msgstr ""
+
+msgid "Title"
+msgstr ""
+
+msgid "Description"
+msgstr ""
+
+msgid "Priority"
+msgstr ""
+
+msgid "Assignee"
+msgstr ""
+
+msgid "Department"
+msgstr ""
+
+msgid "Estimated Hours"
+msgstr ""
+
+msgid "Due Date"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Create New Job Card"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Edit Job Card"
+msgstr ""
+
+msgid "Update Job Card"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "Edit"
+msgstr ""
+
+msgid "No Jobs Found"
+msgstr ""
+
+msgid "No jobs match your current search criteria."
+msgstr ""
+
+msgid "Loading jobs..."
+msgstr ""
+
+msgid "Grid"
+msgstr ""
+
+msgid "List"
+msgstr ""
+
+msgid "Create Job"
+msgstr ""
+
+msgid "comma, separated, tags"
+msgstr ""
+
+msgid "Separate multiple tags with commas"
+msgstr ""
+
+msgid "Job Analytics Dashboard"
+msgstr ""
+
+msgid "Date Range:"
+msgstr ""
+
+msgid "Last 7 days"
+msgstr ""
+
+msgid "Last 30 days"
+msgstr ""
+
+msgid "Last 90 days"
+msgstr ""
+
+msgid "Last year"
+msgstr ""
+
+msgid "Refresh Data"
+msgstr ""
+
+msgid "Completion Rate"
+msgstr ""
+
+msgid "Avg. Completion Time"
+msgstr ""
+
+msgid "Overdue Rate"
+msgstr ""
+
+msgid "Productivity Score"
+msgstr ""
+
+msgid "Status Distribution"
+msgstr ""
+
+msgid "Priority Distribution"
+msgstr ""
+
+msgid "Department Performance"
+msgstr ""
+
+msgid "Completion Trends"
+msgstr ""
+
+msgid "Top Performers"
+msgstr ""
+
+msgid "Department Summary"
+msgstr ""
+
+msgid "Job Card Tracking Settings"
+msgstr ""
+
+msgid "Default Priority"
+msgstr ""
+
+msgid "Default priority for new job cards"
+msgstr ""
+
+msgid "Auto Refresh Interval"
+msgstr ""
+
+msgid "seconds"
+msgstr ""
+
+msgid "How often to automatically refresh job data (10-300 seconds)"
+msgstr ""
+
+msgid "Items Per Page"
+msgstr ""
+
+msgid "Number of job cards to display per page (5-100)"
+msgstr ""
+
+msgid "Default Department"
+msgstr ""
+
+msgid "Default department for new job cards"
+msgstr ""
+
+msgid "Notifications"
+msgstr ""
+
+msgid "Enable browser notifications for job updates"
+msgstr ""
+
+msgid "Display Options"
+msgstr ""
+
+msgid "Users can toggle between light and dark themes using the theme toggle button."
+msgstr ""
+
+msgid "Theme preference is saved in browser localStorage."
+msgstr ""
+
+msgid "Shortcode Usage"
+msgstr ""
+
+msgid "Basic Shortcode"
+msgstr ""
+
+msgid "Display the job tracking system with default settings"
+msgstr ""
+
+msgid "Advanced Shortcode"
+msgstr ""
+
+msgid "Available attributes: view (grid/list), department, status, show_create_button (true/false)"
+msgstr ""
+
+msgid "System Information"
+msgstr ""
+
+msgid "Plugin Version"
+msgstr ""
+
+msgid "Database Version"
+msgstr ""
+
+msgid "Settings saved successfully!"
+msgstr ""

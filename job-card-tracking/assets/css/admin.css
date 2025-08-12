@@ -1,0 +1,450 @@
+/* Admin-specific styles for Job Card Tracking System */
+
+/* Admin page layout */
+.jct-admin-container {
+  margin: 20px 0;
+}
+
+/* WordPress admin integration */
+.wrap .jct-header {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.wrap .jct-stats-grid {
+  margin-bottom: 20px;
+}
+
+.wrap .jct-stat-card {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+/* Admin form styles */
+.jct-admin-form {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 20px;
+}
+
+.jct-admin-form .form-table th {
+  width: 200px;
+  padding: 20px 10px 20px 0;
+}
+
+.jct-admin-form .form-table td {
+  padding: 15px 10px;
+}
+
+/* Admin modal adjustments */
+.wrap .jct-modal-content {
+  background: #fff;
+}
+
+.wrap .jct-modal-header {
+  background: #f6f7f7;
+  border-bottom: 1px solid #c3c4c7;
+}
+
+/* Admin button styles */
+.wrap .jct-btn-primary {
+  background: #2271b1;
+  border-color: #2271b1;
+  color: #fff;
+}
+
+.wrap .jct-btn-primary:hover {
+  background: #135e96;
+  border-color: #135e96;
+}
+
+.wrap .jct-btn-secondary {
+  background: #f6f7f7;
+  border-color: #c3c4c7;
+  color: #2c3338;
+}
+
+.wrap .jct-btn-secondary:hover {
+  background: #f0f0f1;
+  border-color: #8c8f94;
+}
+
+/* Admin filters */
+.wrap .jct-filters {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  padding: 20px;
+  border-radius: 4px;
+}
+
+.wrap .jct-filters input,
+.wrap .jct-filters select {
+  border: 1px solid #8c8f94;
+  border-radius: 4px;
+  background: #fff;
+  color: #2c3338;
+}
+
+.wrap .jct-filters input:focus,
+.wrap .jct-filters select:focus {
+  border-color: #2271b1;
+  box-shadow: 0 0 0 1px #2271b1;
+  outline: 2px solid transparent;
+}
+
+/* Admin job cards */
+.wrap .jct-job-card {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.wrap .jct-job-card:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Admin notifications */
+.jct-admin-notice {
+  margin: 5px 0 15px;
+  padding: 1px 12px;
+  border-left: 4px solid #00a0d2;
+  background: #fff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.jct-admin-notice.notice-success {
+  border-left-color: #46b450;
+}
+
+.jct-admin-notice.notice-error {
+  border-left-color: #dc3232;
+}
+
+.jct-admin-notice.notice-warning {
+  border-left-color: #ffb900;
+}
+
+/* Admin loading states */
+.wrap .jct-loading {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 40px;
+  text-align: center;
+}
+
+/* Admin pagination */
+.wrap .jct-pagination {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 15px;
+  margin-top: 20px;
+}
+
+/* Admin responsive adjustments */
+@media screen and (max-width: 782px) {
+  .wrap .jct-header {
+    padding: 15px;
+  }
+
+  .wrap .jct-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .wrap .jct-filters {
+    padding: 15px;
+  }
+
+  .wrap .jct-stat-card {
+    padding: 15px;
+  }
+}
+
+/* Dark mode for admin (if WordPress admin has dark mode) */
+@media (prefers-color-scheme: dark) {
+  .wrap .jct-header,
+  .wrap .jct-stat-card,
+  .wrap .jct-filters,
+  .wrap .jct-job-card,
+  .wrap .jct-loading,
+  .wrap .jct-pagination {
+    background: #1d2327;
+    border-color: #3c434a;
+    color: #f0f0f1;
+  }
+
+  .wrap .jct-modal-content {
+    background: #1d2327;
+    color: #f0f0f1;
+  }
+
+  .wrap .jct-modal-header {
+    background: #23282d;
+    border-color: #3c434a;
+  }
+
+  .wrap .jct-filters input,
+  .wrap .jct-filters select {
+    background: #1d2327;
+    border-color: #3c434a;
+    color: #f0f0f1;
+  }
+}
+
+/* Analytics page specific styles */
+.jct-analytics-container {
+  margin: 20px 0;
+}
+
+.jct-analytics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+}
+
+.jct-date-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.jct-date-range label {
+  font-weight: 600;
+  color: #2c3338;
+}
+
+.jct-date-range select {
+  padding: 6px 10px;
+  border: 1px solid #8c8f94;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.jct-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.jct-metric-card {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.jct-metric-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: white;
+}
+
+.jct-metric-icon.completion-rate {
+  background: #46b450;
+}
+
+.jct-metric-icon.avg-time {
+  background: #00a0d2;
+}
+
+.jct-metric-icon.overdue-rate {
+  background: #dc3232;
+}
+
+.jct-metric-icon.productivity {
+  background: #9b59b6;
+}
+
+.jct-metric-number {
+  font-size: 24px;
+  font-weight: bold;
+  color: #2c3338;
+  line-height: 1;
+}
+
+.jct-metric-label {
+  font-size: 14px;
+  color: #646970;
+  margin-top: 4px;
+}
+
+.jct-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.jct-chart-card {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.jct-chart-card-full {
+  grid-column: 1 / -1;
+}
+
+.jct-chart-header {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #c3c4c7;
+}
+
+.jct-chart-header h3 {
+  margin: 0;
+  color: #2c3338;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.jct-chart-content {
+  position: relative;
+  height: 300px;
+}
+
+.jct-performers-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.jct-performers-card {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.jct-performers-card h3 {
+  margin: 0 0 20px 0;
+  color: #2c3338;
+  font-size: 18px;
+  font-weight: 600;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #c3c4c7;
+}
+
+.jct-performers-list,
+.jct-department-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jct-performer-item,
+.jct-department-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: #f6f7f7;
+  border-radius: 4px;
+  border: 1px solid #dcdcde;
+}
+
+.jct-performer-name,
+.jct-department-name {
+  font-weight: 600;
+  color: #2c3338;
+}
+
+.jct-performer-stats,
+.jct-department-stats {
+  font-size: 14px;
+  color: #646970;
+}
+
+/* Settings page styles */
+.jct-settings-section {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.jct-settings-section h2 {
+  margin: 0;
+  padding: 15px 20px;
+  background: #f6f7f7;
+  border-bottom: 1px solid #c3c4c7;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.jct-settings-section .form-table {
+  margin: 0;
+}
+
+.jct-settings-section .form-table th,
+.jct-settings-section .form-table td {
+  padding: 20px;
+}
+
+/* Responsive admin styles */
+@media screen and (max-width: 960px) {
+  .jct-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .jct-performers-section {
+    grid-template-columns: 1fr;
+  }
+
+  .jct-metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
+@media screen and (max-width: 600px) {
+  .jct-analytics-header {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .jct-date-range {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .jct-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .jct-metric-card {
+    padding: 15px;
+  }
+
+  .jct-chart-card {
+    padding: 15px;
+  }
+
+  .jct-chart-content {
+    height: 250px;
+  }
+}
