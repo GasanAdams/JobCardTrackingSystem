@@ -1,20 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Badge } from "@/components/ui/badge"
+import { useState, useEffect, useCallback } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,446 +18,658 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Search,
-  Plus,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  XCircle,
-  Users,
-  TrendingUp,
-  Calendar,
-  Filter,
-  Moon,
-  Sun,
-  Download,
-  Trash2,
-  Edit,
-  MoreVertical,
-  RefreshCw,
-} from "lucide-react"
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-} from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { useTheme } from "next-themes"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-
-type JobStatus = "pending" | "in-progress" | "completed" | "cancelled" | "on-hold"
-type Priority = "low" | "medium" | "high" | "urgent"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import {
+  Plus,
+  Search,
+  Filter,
+  MoreVertical,
+  Clock,
+  User,
+  Calendar,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Pause,
+  RotateCcw,
+  Trash2,
+  Grid,
+  List,
+  RefreshCw,
+  Sun,
+  Moon,
+} from "lucide-react"
+import { useTheme } from "next-themes"
+import Image from "next/image"
 
 interface JobCard {
   id: string
   title: string
   description: string
-  status: JobStatus
-  priority: Priority
+  status: "pending" | "in-progress" | "completed" | "on-hold" | "cancelled"
+  priority: "low" | "medium" | "high" | "urgent"
   assignee: string
-  createdAt: Date
-  updatedAt: Date
-  dueDate: Date
-  estimatedHours: number
-  actualHours?: number
   department: string
+  createdDate: string
+  dueDate: string
+  estimatedHours: number
+  actualHours: number
   tags: string[]
+  lastUpdated: string
 }
 
-const statusConfig = {
-  pending: { icon: Clock, color: "bg-yellow-500", label: "Pending" },
-  "in-progress": { icon: TrendingUp, color: "bg-blue-500", label: "In Progress" },
-  completed: { icon: CheckCircle, color: "bg-green-500", label: "Completed" },
-  cancelled: { icon: XCircle, color: "bg-red-500", label: "Cancelled" },
-  "on-hold": { icon: AlertCircle, color: "bg-orange-500", label: "On Hold" },
+interface JobData {
+  jobs: JobCard[]
+  timestamp: number
+  version: number
 }
 
-const priorityConfig = {
-  low: { color: "bg-gray-500", label: "Low" },
-  medium: { color: "bg-blue-500", label: "Medium" },
-  high: { color: "bg-orange-500", label: "High" },
-  urgent: { color: "bg-red-500", label: "Urgent" },
-}
-
-// Storage key for job cards
 const STORAGE_KEY = "job-card-tracking-system"
-const SYNC_EVENT_KEY = "job-cards-sync"
 
-// Utility functions for localStorage sync
-const saveJobsToStorage = (jobs: JobCard[]) => {
-  const data = {
-    jobs,
-    lastUpdated: new Date().toISOString(),
-    version: Date.now(), // Version for sync detection
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-
-  // Dispatch custom event for cross-tab sync
-  window.dispatchEvent(new CustomEvent(SYNC_EVENT_KEY, { detail: data }))
+const priorityColors = {
+  low: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+  medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+  high: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+  urgent: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 animate-pulse",
 }
 
-const loadJobsFromStorage = (): JobCard[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return []
-
-    const data = JSON.parse(stored)
-    if (!data.jobs || !Array.isArray(data.jobs)) return []
-
-    return data.jobs.map((job: any) => ({
-      ...job,
-      createdAt: new Date(job.createdAt),
-      updatedAt: new Date(job.updatedAt),
-      dueDate: new Date(job.dueDate),
-    }))
-  } catch (error) {
-    console.error("Error loading jobs from storage:", error)
-    return []
-  }
+const statusColors = {
+  pending: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+  "in-progress": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+  completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  "on-hold": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+  cancelled: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
 }
 
-const generateJobId = (existingJobs: JobCard[]): string => {
-  const maxId = existingJobs.reduce((max, job) => {
-    const idNum = Number.parseInt(job.id.replace("JOB-", ""))
-    return idNum > max ? idNum : max
-  }, 0)
-  return `JOB-${String(maxId + 1).padStart(3, "0")}`
+const statusIcons = {
+  pending: Clock,
+  "in-progress": RotateCcw,
+  completed: CheckCircle,
+  "on-hold": Pause,
+  cancelled: XCircle,
 }
 
 export default function JobCardTrackingSystem() {
   const [jobs, setJobs] = useState<JobCard[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [filteredJobs, setFilteredJobs] = useState<JobCard[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all")
-  const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all")
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
-  const [deleteJobId, setDeleteJobId] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [priorityFilter, setPriorityFilter] = useState<string>("all")
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [isAddJobOpen, setIsAddJobOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [lastSync, setLastSync] = useState<Date | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const { theme, setTheme } = useTheme()
+
   const [newJob, setNewJob] = useState({
     title: "",
     description: "",
-    priority: "medium" as Priority,
+    status: "pending" as JobCard["status"],
+    priority: "medium" as JobCard["priority"],
     assignee: "",
-    dueDate: "",
-    estimatedHours: "",
     department: "",
+    dueDate: "",
+    estimatedHours: 0,
     tags: "",
   })
-  const [selectedDateRange, setSelectedDateRange] = useState("7d")
-  const [showAnalytics, setShowAnalytics] = useState(false)
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
-  const { theme, setTheme } = useTheme()
 
-  // Initialize jobs from localStorage
-  useEffect(() => {
-    const loadedJobs = loadJobsFromStorage()
-    setJobs(loadedJobs)
-    setIsLoading(false)
-    setLastSyncTime(new Date())
+  // Load jobs from localStorage with sync
+  const loadJobs = useCallback(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        const data: JobData = JSON.parse(stored)
+        setJobs(data.jobs || [])
+        setLastSync(new Date(data.timestamp))
+      } else {
+        setJobs([])
+        setLastSync(new Date())
+      }
+    } catch (error) {
+      console.error("Error loading jobs:", error)
+      setJobs([])
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
-  // Cross-tab synchronization
-  useEffect(() => {
-    const handleStorageSync = (event: CustomEvent) => {
-      const { jobs: syncedJobs } = event.detail
-      if (syncedJobs) {
-        const parsedJobs = syncedJobs.map((job: any) => ({
-          ...job,
-          createdAt: new Date(job.createdAt),
-          updatedAt: new Date(job.updatedAt),
-          dueDate: new Date(job.dueDate),
-        }))
-        setJobs(parsedJobs)
-        setLastSyncTime(new Date())
+  // Save jobs to localStorage with sync
+  const saveJobs = useCallback((jobsToSave: JobCard[]) => {
+    try {
+      const data: JobData = {
+        jobs: jobsToSave,
+        timestamp: Date.now(),
+        version: Math.floor(Date.now() / 1000),
       }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      setLastSync(new Date())
+
+      // Dispatch custom event for cross-tab sync
+      window.dispatchEvent(new CustomEvent("job-cards-sync", { detail: data }))
+    } catch (error) {
+      console.error("Error saving jobs:", error)
+    }
+  }, [])
+
+  // Generate next job ID
+  const generateJobId = useCallback((existingJobs: JobCard[]) => {
+    const maxId = existingJobs.reduce((max, job) => {
+      const idNum = Number.parseInt(job.id.replace("JOB-", ""))
+      return idNum > max ? idNum : max
+    }, 0)
+    return `JOB-${String(maxId + 1).padStart(3, "0")}`
+  }, [])
+
+  // Handle mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
     }
 
-    // Listen for storage changes from other tabs
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY && event.newValue) {
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
+  // Initialize and set up sync listeners
+  useEffect(() => {
+    loadJobs()
+
+    // Listen for localStorage changes (cross-tab sync)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
         try {
-          const data = JSON.parse(event.newValue)
-          if (data.jobs) {
-            const parsedJobs = data.jobs.map((job: any) => ({
-              ...job,
-              createdAt: new Date(job.createdAt),
-              updatedAt: new Date(job.updatedAt),
-              dueDate: new Date(job.dueDate),
-            }))
-            setJobs(parsedJobs)
-            setLastSyncTime(new Date())
-          }
+          const data: JobData = JSON.parse(e.newValue)
+          setJobs(data.jobs || [])
+          setLastSync(new Date(data.timestamp))
         } catch (error) {
           console.error("Error syncing jobs:", error)
         }
       }
     }
 
-    window.addEventListener(SYNC_EVENT_KEY as any, handleStorageSync)
+    // Listen for custom sync events
+    const handleSyncEvent = (e: CustomEvent) => {
+      const data = e.detail as JobData
+      setJobs(data.jobs || [])
+      setLastSync(new Date(data.timestamp))
+    }
+
     window.addEventListener("storage", handleStorageChange)
+    window.addEventListener("job-cards-sync", handleSyncEvent as EventListener)
 
     return () => {
-      window.removeEventListener(SYNC_EVENT_KEY as any, handleStorageSync)
       window.removeEventListener("storage", handleStorageChange)
+      window.removeEventListener("job-cards-sync", handleSyncEvent as EventListener)
     }
-  }, [])
+  }, [loadJobs])
 
-  // Auto-refresh every 30 seconds to check for updates
+  // Filter jobs based on search and filters
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Just update the last sync time to show the system is active
-      setLastSyncTime(new Date())
-    }, 30000)
+    let filtered = jobs
 
-    return () => clearInterval(interval)
-  }, [])
-
-  // Manual refresh function
-  const refreshJobs = () => {
-    const loadedJobs = loadJobsFromStorage()
-    setJobs(loadedJobs)
-    setLastSyncTime(new Date())
-  }
-
-  // Export functionality
-  const exportToCSV = () => {
-    const headers = [
-      "ID",
-      "Title",
-      "Status",
-      "Priority",
-      "Assignee",
-      "Department",
-      "Due Date",
-      "Estimated Hours",
-      "Actual Hours",
-    ]
-    const csvContent = [
-      headers.join(","),
-      ...filteredJobs.map((job) =>
-        [
-          job.id,
-          `"${job.title}"`,
-          job.status,
-          job.priority,
-          `"${job.assignee}"`,
-          `"${job.department}"`,
-          job.dueDate.toISOString().split("T")[0],
-          job.estimatedHours,
-          job.actualHours || "",
-        ].join(","),
-      ),
-    ].join("\n")
-
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `job-cards-${new Date().toISOString().split("T")[0]}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-  }
-
-  const filteredJobs = jobs.filter((job) => {
-    const matchesSearch =
-      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.assignee.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || job.status === statusFilter
-    const matchesPriority = priorityFilter === "all" || job.priority === priorityFilter
-
-    return matchesSearch && matchesStatus && matchesPriority
-  })
-
-  const updateJobStatus = (jobId: string, newStatus: JobStatus) => {
-    const updatedJobs = jobs.map((job) =>
-      job.id === jobId ? { ...job, status: newStatus, updatedAt: new Date() } : job,
-    )
-    setJobs(updatedJobs)
-    saveJobsToStorage(updatedJobs)
-  }
-
-  const deleteJob = async (jobId: string) => {
-    setIsDeleting(true)
-
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    const updatedJobs = jobs.filter((job) => job.id !== jobId)
-    setJobs(updatedJobs)
-    saveJobsToStorage(updatedJobs)
-
-    setDeleteJobId(null)
-    setIsDeleting(false)
-  }
-
-  const handleDeleteClick = (jobId: string) => {
-    setDeleteJobId(jobId)
-  }
-
-  const confirmDelete = () => {
-    if (deleteJobId) {
-      deleteJob(deleteJobId)
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (job) =>
+          job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          job.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          job.assignee.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          job.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          job.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase())),
+      )
     }
-  }
 
-  const cancelDelete = () => {
-    setDeleteJobId(null)
-  }
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((job) => job.status === statusFilter)
+    }
 
-  const createJob = () => {
-    if (!newJob.title || !newJob.assignee) return
+    if (priorityFilter !== "all") {
+      filtered = filtered.filter((job) => job.priority === priorityFilter)
+    }
+
+    if (departmentFilter !== "all") {
+      filtered = filtered.filter((job) => job.department === departmentFilter)
+    }
+
+    setFilteredJobs(filtered)
+  }, [jobs, searchTerm, statusFilter, priorityFilter, departmentFilter])
+
+  const addJob = () => {
+    if (!newJob.title.trim()) return
 
     const job: JobCard = {
       id: generateJobId(jobs),
       title: newJob.title,
       description: newJob.description,
-      status: "pending",
+      status: newJob.status,
       priority: newJob.priority,
       assignee: newJob.assignee,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      dueDate: new Date(newJob.dueDate),
-      estimatedHours: Number.parseInt(newJob.estimatedHours) || 0,
       department: newJob.department,
+      createdDate: new Date().toISOString().split("T")[0],
+      dueDate: newJob.dueDate,
+      estimatedHours: newJob.estimatedHours,
+      actualHours: 0,
       tags: newJob.tags
         .split(",")
         .map((tag) => tag.trim())
-        .filter(Boolean),
+        .filter((tag) => tag),
+      lastUpdated: new Date().toISOString(),
     }
 
     const updatedJobs = [...jobs, job]
     setJobs(updatedJobs)
-    saveJobsToStorage(updatedJobs)
+    saveJobs(updatedJobs)
 
     setNewJob({
       title: "",
       description: "",
+      status: "pending",
       priority: "medium",
       assignee: "",
-      dueDate: "",
-      estimatedHours: "",
       department: "",
+      dueDate: "",
+      estimatedHours: 0,
       tags: "",
     })
-    setIsCreateDialogOpen(false)
+    setIsAddJobOpen(false)
   }
 
-  const getStatusCounts = () => {
-    return {
-      total: jobs.length,
-      pending: jobs.filter((job) => job.status === "pending").length,
-      inProgress: jobs.filter((job) => job.status === "in-progress").length,
-      completed: jobs.filter((job) => job.status === "completed").length,
-      onHold: jobs.filter((job) => job.status === "on-hold").length,
+  const updateJobStatus = (jobId: string, newStatus: JobCard["status"]) => {
+    const updatedJobs = jobs.map((job) =>
+      job.id === jobId ? { ...job, status: newStatus, lastUpdated: new Date().toISOString() } : job,
+    )
+    setJobs(updatedJobs)
+    saveJobs(updatedJobs)
+  }
+
+  const deleteJob = (jobId: string) => {
+    const updatedJobs = jobs.filter((job) => job.id !== jobId)
+    setJobs(updatedJobs)
+    saveJobs(updatedJobs)
+  }
+
+  const refreshData = () => {
+    setIsLoading(true)
+    setTimeout(() => {
+      loadJobs()
+    }, 500)
+  }
+
+  const getStats = () => {
+    const total = jobs.length
+    const pending = jobs.filter((job) => job.status === "pending").length
+    const inProgress = jobs.filter((job) => job.status === "in-progress").length
+    const completed = jobs.filter((job) => job.status === "completed").length
+    const overdue = jobs.filter((job) => {
+      const dueDate = new Date(job.dueDate)
+      const today = new Date()
+      return dueDate < today && job.status !== "completed"
+    }).length
+
+    return { total, pending, inProgress, completed, overdue }
+  }
+
+  const stats = getStats()
+  const departments = [...new Set(jobs.map((job) => job.department))].filter(Boolean)
+
+  const chartData = [
+    { name: "Pending", value: stats.pending, color: "#6b7280" },
+    { name: "In Progress", value: stats.inProgress, color: "#3b82f6" },
+    { name: "Completed", value: stats.completed, color: "#10b981" },
+    { name: "On Hold", value: jobs.filter((job) => job.status === "on-hold").length, color: "#f59e0b" },
+    { name: "Cancelled", value: jobs.filter((job) => job.status === "cancelled").length, color: "#ef4444" },
+  ]
+
+  const performanceData = departments.map((dept) => ({
+    department: dept,
+    completed: jobs.filter((job) => job.department === dept && job.status === "completed").length,
+    total: jobs.filter((job) => job.department === dept).length,
+  }))
+
+  const MobileFilters = () => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="sm" className="md:hidden bg-transparent">
+          <Filter className="h-4 w-4 mr-2" />
+          Filters
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-80">
+        <SheetHeader>
+          <SheetTitle>Filters & Actions</SheetTitle>
+        </SheetHeader>
+        <div className="space-y-4 mt-6">
+          <div className="space-y-2">
+            <Label htmlFor="mobile-search">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                id="mobile-search"
+                placeholder="Search jobs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="on-hold">On Hold</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Priority</Label>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Department</Label>
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="pt-4 border-t">
+            <Dialog open={isAddJobOpen} onOpenChange={setIsAddJobOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Job
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+
+  const JobCard = ({ job }: { job: JobCard }) => {
+    const StatusIcon = statusIcons[job.status]
+    const isOverdue = new Date(job.dueDate) < new Date() && job.status !== "completed"
+
+    if (isMobile) {
+      return (
+        <Card
+          className={`transition-all duration-200 hover:shadow-md ${isOverdue ? "border-red-200 dark:border-red-800" : ""}`}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-base font-semibold truncate">{job.title}</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">{job.id}</p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "pending")}>
+                    <Clock className="h-4 w-4 mr-2" />
+                    Set Pending
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "in-progress")}>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Set In Progress
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "completed")}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Set Completed
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "on-hold")}>
+                    <Pause className="h-4 w-4 mr-2" />
+                    Set On Hold
+                  </DropdownMenuItem>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Job
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Job Card</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{job.title}"? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteJob(job.id)} className="bg-red-600 hover:bg-red-700">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge className={priorityColors[job.priority]} variant="secondary">
+                {job.priority}
+              </Badge>
+              <Badge className={statusColors[job.status]} variant="secondary">
+                <StatusIcon className="h-3 w-3 mr-1" />
+                {job.status.replace("-", " ")}
+              </Badge>
+            </div>
+
+            {job.description && <p className="text-sm text-muted-foreground line-clamp-2">{job.description}</p>}
+
+            <div className="space-y-2 text-xs text-muted-foreground">
+              {job.assignee && (
+                <div className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  <span className="truncate">{job.assignee}</span>
+                </div>
+              )}
+              {job.dueDate && (
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  <span>{new Date(job.dueDate).toLocaleDateString()}</span>
+                  {isOverdue && <AlertTriangle className="h-3 w-3 text-red-500 ml-1" />}
+                </div>
+              )}
+              {job.estimatedHours > 0 && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>{job.estimatedHours}h estimated</span>
+                </div>
+              )}
+            </div>
+
+            {job.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {job.tags.slice(0, 2).map((tag, index) => (
+                  <Badge key={index} variant="outline" className="text-xs px-1 py-0">
+                    {tag}
+                  </Badge>
+                ))}
+                {job.tags.length > 2 && (
+                  <Badge variant="outline" className="text-xs px-1 py-0">
+                    +{job.tags.length - 2}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )
     }
+
+    return (
+      <Card
+        className={`transition-all duration-200 hover:shadow-lg hover:-translate-y-1 ${isOverdue ? "border-red-200 dark:border-red-800" : ""}`}
+      >
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle className="text-lg font-semibold">{job.title}</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">{job.id}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className={priorityColors[job.priority]} variant="secondary">
+                {job.priority}
+              </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "pending")}>
+                    <Clock className="h-4 w-4 mr-2" />
+                    Set Pending
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "in-progress")}>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Set In Progress
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "completed")}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Set Completed
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateJobStatus(job.id, "on-hold")}>
+                    <Pause className="h-4 w-4 mr-2" />
+                    Set On Hold
+                  </DropdownMenuItem>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Job
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Job Card</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{job.title}"? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteJob(job.id)} className="bg-red-600 hover:bg-red-700">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Badge className={statusColors[job.status]} variant="secondary">
+                <StatusIcon className="h-3 w-3 mr-1" />
+                {job.status.replace("-", " ")}
+              </Badge>
+            </div>
+
+            {job.description && <p className="text-sm text-muted-foreground">{job.description}</p>}
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {job.assignee && (
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span>{job.assignee}</span>
+                </div>
+              )}
+              {job.department && <div className="text-muted-foreground">Dept: {job.department}</div>}
+              {job.dueDate && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>{new Date(job.dueDate).toLocaleDateString()}</span>
+                  {isOverdue && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                </div>
+              )}
+              {job.estimatedHours > 0 && (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>{job.estimatedHours}h estimated</span>
+                </div>
+              )}
+            </div>
+
+            {job.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {job.tags.map((tag, index) => (
+                  <Badge key={index} variant="outline" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {isOverdue && (
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-medium">
+                <AlertTriangle className="h-4 w-4" />
+                Overdue
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
-
-  const statusCounts = getStatusCounts()
-
-  const getCompletionTrends = () => {
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date()
-      date.setDate(date.getDate() - (6 - i))
-      const dayJobs = jobs.filter((job) => {
-        const jobDate = new Date(job.createdAt)
-        return jobDate.toDateString() === date.toDateString()
-      })
-      const completedJobs = jobs.filter((job) => {
-        const jobDate = new Date(job.updatedAt)
-        return jobDate.toDateString() === date.toDateString() && job.status === "completed"
-      })
-      return {
-        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        completed: completedJobs.length,
-        created: dayJobs.length,
-      }
-    })
-    return last7Days
-  }
-
-  const getStatusDistribution = () => {
-    return [
-      { name: "Completed", value: statusCounts.completed, color: "#10b981" },
-      { name: "In Progress", value: statusCounts.inProgress, color: "#3b82f6" },
-      { name: "Pending", value: statusCounts.pending, color: "#f59e0b" },
-      { name: "On Hold", value: statusCounts.onHold, color: "#f97316" },
-    ]
-  }
-
-  const getDepartmentPerformance = () => {
-    const departments = [...new Set(jobs.map((job) => job.department).filter(Boolean))]
-    return departments.map((dept) => ({
-      department: dept,
-      completed: jobs.filter((job) => job.department === dept && job.status === "completed").length,
-      total: jobs.filter((job) => job.department === dept).length,
-      efficiency:
-        Math.round(
-          (jobs.filter((job) => job.department === dept && job.status === "completed").length /
-            jobs.filter((job) => job.department === dept).length) *
-            100,
-        ) || 0,
-    }))
-  }
-
-  const getPriorityDistribution = () => {
-    return [
-      { name: "Low", value: jobs.filter((job) => job.priority === "low").length, color: "#6b7280" },
-      { name: "Medium", value: jobs.filter((job) => job.priority === "medium").length, color: "#3b82f6" },
-      { name: "High", value: jobs.filter((job) => job.priority === "high").length, color: "#f97316" },
-      { name: "Urgent", value: jobs.filter((job) => job.priority === "urgent").length, color: "#ef4444" },
-    ]
-  }
-
-  const getTimeTrackingData = () => {
-    return jobs
-      .filter((job) => job.actualHours)
-      .map((job) => ({
-        id: job.id,
-        title: job.title.substring(0, 20) + "...",
-        estimated: job.estimatedHours,
-        actual: job.actualHours || 0,
-        variance: (((job.actualHours || 0) - job.estimatedHours) / job.estimatedHours) * 100,
-      }))
-  }
-
-  const getAssigneePerformance = () => {
-    const assignees = [...new Set(jobs.map((job) => job.assignee).filter(Boolean))]
-    return assignees.map((assignee) => {
-      const assigneeJobs = jobs.filter((job) => job.assignee === assignee)
-      const completedJobs = assigneeJobs.filter((job) => job.status === "completed")
-      return {
-        assignee: assignee.split(" ")[0], // First name only for chart
-        completed: completedJobs.length,
-        total: assigneeJobs.length,
-        avgHours: completedJobs.reduce((sum, job) => sum + (job.actualHours || 0), 0) / completedJobs.length || 0,
-      }
-    })
-  }
-
-  const jobToDelete = jobs.find((job) => job.id === deleteJobId)
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading job tracking system...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading job cards...</p>
         </div>
       </div>
     )
@@ -471,1176 +677,452 @@ export default function JobCardTrackingSystem() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile Header */}
-      <div className="lg:hidden sticky top-0 z-50 bg-background border-b px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Job Tracker</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{statusCounts.total} jobs</span>
-              {lastSyncTime && <span>• Synced {lastSyncTime.toLocaleTimeString()}</span>}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={refreshJobs}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            </Button>
-            <Sheet open={isMobileFiltersOpen} onOpenChange={setIsMobileFiltersOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-80">
-                <SheetHeader>
-                  <SheetTitle>Filters & Actions</SheetTitle>
-                  <SheetDescription>Filter jobs and access quick actions</SheetDescription>
-                </SheetHeader>
-                <div className="space-y-4 mt-6">
-                  <div>
-                    <Label htmlFor="mobile-search">Search</Label>
-                    <div className="relative mt-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input
-                        id="mobile-search"
-                        placeholder="Search jobs..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Status Filter</Label>
-                    <Select value={statusFilter} onValueChange={(value: JobStatus | "all") => setStatusFilter(value)}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="in-progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="on-hold">On Hold</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Priority Filter</Label>
-                    <Select
-                      value={priorityFilter}
-                      onValueChange={(value: Priority | "all") => setPriorityFilter(value)}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Priorities</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="pt-4 space-y-2">
-                    <Button onClick={exportToCSV} className="w-full bg-transparent" variant="outline">
-                      <Download className="w-4 h-4 mr-2" />
-                      Export CSV
-                    </Button>
-                    <Button
-                      onClick={() => setShowAnalytics(!showAnalytics)}
-                      className="w-full"
-                      variant={showAnalytics ? "default" : "outline"}
-                    >
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      {showAnalytics ? "Hide Analytics" : "Show Analytics"}
-                    </Button>
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="icon">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-sm mx-4">
-                <DialogHeader>
-                  <DialogTitle>Create Job Card</DialogTitle>
-                  <DialogDescription>Fill in the details to create a new job card.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="title">Title</Label>
-                    <Input
-                      id="title"
-                      value={newJob.title}
-                      onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
-                      placeholder="Job title"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={newJob.description}
-                      onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
-                      placeholder="Job description"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="priority">Priority</Label>
-                      <Select
-                        value={newJob.priority}
-                        onValueChange={(value: Priority) => setNewJob({ ...newJob, priority: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="estimatedHours">Est. Hours</Label>
-                      <Input
-                        id="estimatedHours"
-                        type="number"
-                        value={newJob.estimatedHours}
-                        onChange={(e) => setNewJob({ ...newJob, estimatedHours: e.target.value })}
-                        placeholder="8"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="assignee">Assignee</Label>
-                    <Input
-                      id="assignee"
-                      value={newJob.assignee}
-                      onChange={(e) => setNewJob({ ...newJob, assignee: e.target.value })}
-                      placeholder="John Doe"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="department">Department</Label>
-                    <Input
-                      id="department"
-                      value={newJob.department}
-                      onChange={(e) => setNewJob({ ...newJob, department: e.target.value })}
-                      placeholder="IT"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="dueDate">Due Date</Label>
-                    <Input
-                      id="dueDate"
-                      type="datetime-local"
-                      value={newJob.dueDate}
-                      onChange={(e) => setNewJob({ ...newJob, dueDate: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="tags">Tags (comma separated)</Label>
-                    <Input
-                      id="tags"
-                      value={newJob.tags}
-                      onChange={(e) => setNewJob({ ...newJob, tags: e.target.value })}
-                      placeholder="maintenance, urgent"
-                    />
-                  </div>
-                  <Button onClick={createJob} className="w-full">
-                    Create Job Card
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop Header */}
-      <div className="hidden lg:block p-6">
-        <div className="max-w-7xl mx-auto">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Job Card Tracking System</h1>
-              <div className="flex items-center gap-4 text-gray-600 dark:text-gray-400 mt-1">
-                <p>Real-time job management and tracking dashboard</p>
-                {lastSyncTime && <span className="text-sm">• Last synced: {lastSyncTime.toLocaleTimeString()}</span>}
+            <div className="flex items-center gap-4">
+              <Image src="/carbon-bros-logo.png" alt="Carbon Bros" width={120} height={40} className="h-8 w-auto" />
+              <div className="hidden md:block">
+                <h1 className="text-2xl font-bold">Job Card Tracking System</h1>
+                <p className="text-sm text-muted-foreground">Real-time job management dashboard</p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={refreshJobs}>
-                <RefreshCw className="h-4 w-4" />
+
+            <div className="flex items-center gap-2">
+              {lastSync && (
+                <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Last sync: {lastSync.toLocaleTimeString()}</span>
+                  <Button variant="ghost" size="sm" onClick={refreshData}>
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              <Button variant="ghost" size="sm" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
-              <Button variant="outline" size="icon" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-                <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                <span className="sr-only">Toggle theme</span>
-              </Button>
-              <Button variant="outline" onClick={exportToCSV}>
-                <Download className="w-4 h-4 mr-2" />
-                Export CSV
-              </Button>
-              <Button variant={showAnalytics ? "default" : "outline"} onClick={() => setShowAnalytics(!showAnalytics)}>
-                <TrendingUp className="w-4 h-4 mr-2" />
-                {showAnalytics ? "Hide Analytics" : "Show Analytics"}
-              </Button>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+
+              <div className="flex items-center gap-1 border rounded-md p-1">
+                <Button
+                  variant={viewMode === "grid" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("grid")}
+                  className="h-8 w-8 p-0"
+                >
+                  <Grid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("list")}
+                  className="h-8 w-8 p-0"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <MobileFilters />
+
+              <Dialog open={isAddJobOpen} onOpenChange={setIsAddJobOpen}>
                 <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Job Card
+                  <Button className="hidden md:flex">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Job
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Create New Job Card</DialogTitle>
-                    <DialogDescription>Fill in the details to create a new job card.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="title">Title</Label>
-                      <Input
-                        id="title"
-                        value={newJob.title}
-                        onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
-                        placeholder="Job title"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={newJob.description}
-                        onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
-                        placeholder="Job description"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="priority">Priority</Label>
-                        <Select
-                          value={newJob.priority}
-                          onValueChange={(value: Priority) => setNewJob({ ...newJob, priority: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                            <SelectItem value="urgent">Urgent</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="estimatedHours">Est. Hours</Label>
-                        <Input
-                          id="estimatedHours"
-                          type="number"
-                          value={newJob.estimatedHours}
-                          onChange={(e) => setNewJob({ ...newJob, estimatedHours: e.target.value })}
-                          placeholder="8"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="assignee">Assignee</Label>
-                      <Input
-                        id="assignee"
-                        value={newJob.assignee}
-                        onChange={(e) => setNewJob({ ...newJob, assignee: e.target.value })}
-                        placeholder="John Doe"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="department">Department</Label>
-                      <Input
-                        id="department"
-                        value={newJob.department}
-                        onChange={(e) => setNewJob({ ...newJob, department: e.target.value })}
-                        placeholder="IT"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="dueDate">Due Date</Label>
-                      <Input
-                        id="dueDate"
-                        type="datetime-local"
-                        value={newJob.dueDate}
-                        onChange={(e) => setNewJob({ ...newJob, dueDate: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="tags">Tags (comma separated)</Label>
-                      <Input
-                        id="tags"
-                        value={newJob.tags}
-                        onChange={(e) => setNewJob({ ...newJob, tags: e.target.value })}
-                        placeholder="maintenance, urgent, server"
-                      />
-                    </div>
-                    <Button onClick={createJob} className="w-full">
-                      Create Job Card
-                    </Button>
-                  </div>
-                </DialogContent>
               </Dialog>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="px-4 lg:px-6 pb-6">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Delete Confirmation Dialog */}
-          <AlertDialog open={!!deleteJobId} onOpenChange={() => setDeleteJobId(null)}>
-            <AlertDialogContent className="mx-4 max-w-sm lg:max-w-lg lg:mx-auto">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Job Card</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete "{jobToDelete?.title}"? This action cannot be undone and will
-                  permanently remove the job card and all its data.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                <AlertDialogCancel onClick={cancelDelete} disabled={isDeleting} className="w-full sm:w-auto">
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={confirmDelete}
-                  disabled={isDeleting}
-                  className="bg-red-600 hover:bg-red-700 focus:ring-red-600 w-full sm:w-auto"
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className="loading-spinner mr-2" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete Job
-                    </>
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Empty State */}
-          {jobs.length === 0 && (
-            <Card className="text-center py-12">
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-                    <Users className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">No Job Cards Yet</h3>
-                    <p className="text-muted-foreground">Get started by creating your first job card.</p>
-                  </div>
-                  <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Your First Job Card
-                      </Button>
-                    </DialogTrigger>
-                  </Dialog>
+      <div className="container mx-auto px-4 py-6">
+        {/* Stats Overview */}
+        <div className={`grid gap-4 mb-6 ${isMobile ? "grid-cols-2" : "grid-cols-2 md:grid-cols-5"}`}>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
+                  <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Show content only if there are jobs */}
-          {jobs.length > 0 && (
-            <>
-              {/* Mobile Stats Cards */}
-              <div className="lg:hidden grid grid-cols-2 gap-3">
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Total</p>
-                      <p className="text-lg font-bold">{statusCounts.total}</p>
-                    </div>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </Card>
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Pending</p>
-                      <p className="text-lg font-bold text-yellow-600">{statusCounts.pending}</p>
-                    </div>
-                    <Clock className="h-4 w-4 text-yellow-600" />
-                  </div>
-                </Card>
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">In Progress</p>
-                      <p className="text-lg font-bold text-blue-600">{statusCounts.inProgress}</p>
-                    </div>
-                    <TrendingUp className="h-4 w-4 text-blue-600" />
-                  </div>
-                </Card>
-                <Card className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Completed</p>
-                      <p className="text-lg font-bold text-green-600">{statusCounts.completed}</p>
-                    </div>
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  </div>
-                </Card>
+                <div>
+                  <p className="text-2xl font-bold">{stats.total}</p>
+                  <p className="text-xs text-muted-foreground">Total Jobs</p>
+                </div>
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Desktop Stats Cards */}
-              <div className="hidden lg:grid grid-cols-1 md:grid-cols-5 gap-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{statusCounts.total}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                    <Clock className="h-4 w-4 text-yellow-600" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-yellow-600">{statusCounts.pending}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-                    <TrendingUp className="h-4 w-4 text-blue-600" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">{statusCounts.inProgress}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Completed</CardTitle>
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">{statusCounts.completed}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">On Hold</CardTitle>
-                    <AlertCircle className="h-4 w-4 text-orange-600" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-orange-600">{statusCounts.onHold}</div>
-                  </CardContent>
-                </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+                  <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.pending}</p>
+                  <p className="text-xs text-muted-foreground">Pending</p>
+                </div>
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Analytics Dashboard */}
-              {showAnalytics && (
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5" />
-                          Performance Analytics
-                        </CardTitle>
-                        <Select value={selectedDateRange} onValueChange={setSelectedDateRange}>
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="7d">Last 7 days</SelectItem>
-                            <SelectItem value="30d">Last 30 days</SelectItem>
-                            <SelectItem value="90d">Last 90 days</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardHeader>
-                  </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
+                  <RotateCcw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.inProgress}</p>
+                  <p className="text-xs text-muted-foreground">In Progress</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                  {/* Charts Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Job Completion Trends */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base lg:text-lg">Job Completion Trends</CardTitle>
-                        <CardDescription className="text-sm">
-                          Daily job creation vs completion over the last 7 days
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <ChartContainer
-                          config={{
-                            completed: {
-                              label: "Completed",
-                              color: "hsl(var(--chart-1))",
-                            },
-                            created: {
-                              label: "Created",
-                              color: "hsl(var(--chart-2))",
-                            },
-                          }}
-                          className="h-[250px] lg:h-[300px]"
-                        >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={getCompletionTrends()}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="date" fontSize={12} />
-                              <YAxis fontSize={12} />
-                              <ChartTooltip content={<ChartTooltipContent />} />
-                              <Area
-                                type="monotone"
-                                dataKey="completed"
-                                stackId="1"
-                                stroke="var(--color-completed)"
-                                fill="var(--color-completed)"
-                                fillOpacity={0.6}
-                              />
-                              <Area
-                                type="monotone"
-                                dataKey="created"
-                                stackId="1"
-                                stroke="var(--color-created)"
-                                fill="var(--color-created)"
-                                fillOpacity={0.6}
-                              />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </ChartContainer>
-                      </CardContent>
-                    </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 dark:bg-green-900 rounded-full">
+                  <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.completed}</p>
+                  <p className="text-xs text-muted-foreground">Completed</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                    {/* Status Distribution */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base lg:text-lg">Status Distribution</CardTitle>
-                        <CardDescription className="text-sm">Current distribution of job statuses</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <ChartContainer
-                          config={{
-                            completed: { label: "Completed", color: "#10b981" },
-                            inProgress: { label: "In Progress", color: "#3b82f6" },
-                            pending: { label: "Pending", color: "#f59e0b" },
-                            onHold: { label: "On Hold", color: "#f97316" },
-                          }}
-                          className="h-[250px] lg:h-[300px]"
-                        >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={getStatusDistribution()}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={40}
-                                outerRadius={80}
-                                paddingAngle={5}
-                                dataKey="value"
-                              >
-                                {getStatusDistribution().map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <ChartTooltip content={<ChartTooltipContent />} />
-                              <Legend />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </ChartContainer>
-                      </CardContent>
-                    </Card>
+          <Card className={isMobile ? "col-span-2" : ""}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 dark:bg-red-900 rounded-full">
+                  <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.overdue}</p>
+                  <p className="text-xs text-muted-foreground">Overdue</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-                    {/* Department Performance */}
-                    {getDepartmentPerformance().length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base lg:text-lg">Department Performance</CardTitle>
-                          <CardDescription className="text-sm">Completion efficiency by department</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <ChartContainer
-                            config={{
-                              efficiency: {
-                                label: "Efficiency %",
-                                color: "hsl(var(--chart-3))",
-                              },
-                            }}
-                            className="h-[250px] lg:h-[300px]"
-                          >
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={getDepartmentPerformance()}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="department" fontSize={12} />
-                                <YAxis fontSize={12} />
-                                <ChartTooltip content={<ChartTooltipContent />} />
-                                <Bar dataKey="efficiency" fill="var(--color-efficiency)" radius={[4, 4, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </ChartContainer>
-                        </CardContent>
-                      </Card>
+        {/* Desktop Filters */}
+        {!isMobile && (
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Search jobs..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="on-hold">On Hold</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Priorities</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Main Content */}
+        <Tabs defaultValue="jobs" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="jobs">Job Cards ({filteredJobs.length})</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="jobs">
+            {filteredJobs.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <div className="text-center space-y-4">
+                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+                      <Calendar className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">No job cards found</h3>
+                      <p className="text-muted-foreground">
+                        {jobs.length === 0
+                          ? "Get started by creating your first job card"
+                          : "Try adjusting your search or filter criteria"}
+                      </p>
+                    </div>
+                    {jobs.length === 0 && (
+                      <Dialog open={isAddJobOpen} onOpenChange={setIsAddJobOpen}>
+                        <DialogTrigger asChild>
+                          <Button>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create First Job
+                          </Button>
+                        </DialogTrigger>
+                      </Dialog>
                     )}
-
-                    {/* Priority Distribution */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base lg:text-lg">Priority Distribution</CardTitle>
-                        <CardDescription className="text-sm">Jobs breakdown by priority level</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <ChartContainer
-                          config={{
-                            low: { label: "Low", color: "#6b7280" },
-                            medium: { label: "Medium", color: "#3b82f6" },
-                            high: { label: "High", color: "#f97316" },
-                            urgent: { label: "Urgent", color: "#ef4444" },
-                          }}
-                          className="h-[250px] lg:h-[300px]"
-                        >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={getPriorityDistribution()} layout="horizontal">
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis type="number" fontSize={12} />
-                              <YAxis dataKey="name" type="category" fontSize={12} />
-                              <ChartTooltip content={<ChartTooltipContent />} />
-                              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                                {getPriorityDistribution().map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </ChartContainer>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Time Tracking Analysis */}
-                  {getTimeTrackingData().length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base lg:text-lg">Time Tracking Analysis</CardTitle>
-                        <CardDescription className="text-sm">
-                          Estimated vs actual hours for completed jobs
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <ChartContainer
-                          config={{
-                            estimated: {
-                              label: "Estimated Hours",
-                              color: "hsl(var(--chart-4))",
-                            },
-                            actual: {
-                              label: "Actual Hours",
-                              color: "hsl(var(--chart-5))",
-                            },
-                          }}
-                          className="h-[300px] lg:h-[400px]"
-                        >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={getTimeTrackingData()}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="title" angle={-45} textAnchor="end" height={100} fontSize={10} />
-                              <YAxis fontSize={12} />
-                              <ChartTooltip content={<ChartTooltipContent />} />
-                              <Legend />
-                              <Bar dataKey="estimated" fill="var(--color-estimated)" name="Estimated Hours" />
-                              <Bar dataKey="actual" fill="var(--color-actual)" name="Actual Hours" />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </ChartContainer>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Assignee Performance */}
-                  {getAssigneePerformance().length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base lg:text-lg">Assignee Performance</CardTitle>
-                        <CardDescription className="text-sm">
-                          Job completion and average hours by team member
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          <div>
-                            <h4 className="text-sm font-medium mb-4">Jobs Completed</h4>
-                            <ChartContainer
-                              config={{
-                                completed: {
-                                  label: "Completed Jobs",
-                                  color: "hsl(var(--chart-1))",
-                                },
-                              }}
-                              className="h-[200px] lg:h-[250px]"
-                            >
-                              <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={getAssigneePerformance()}>
-                                  <CartesianGrid strokeDasharray="3 3" />
-                                  <XAxis dataKey="assignee" fontSize={12} />
-                                  <YAxis fontSize={12} />
-                                  <ChartTooltip content={<ChartTooltipContent />} />
-                                  <Bar dataKey="completed" fill="var(--color-completed)" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                              </ResponsiveContainer>
-                            </ChartContainer>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium mb-4">Average Hours per Job</h4>
-                            <ChartContainer
-                              config={{
-                                avgHours: {
-                                  label: "Average Hours",
-                                  color: "hsl(var(--chart-2))",
-                                },
-                              }}
-                              className="h-[200px] lg:h-[250px]"
-                            >
-                              <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={getAssigneePerformance()}>
-                                  <CartesianGrid strokeDasharray="3 3" />
-                                  <XAxis dataKey="assignee" fontSize={12} />
-                                  <YAxis fontSize={12} />
-                                  <ChartTooltip content={<ChartTooltipContent />} />
-                                  <Bar dataKey="avgHours" fill="var(--color-avgHours)" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                              </ResponsiveContainer>
-                            </ChartContainer>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Key Performance Indicators */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base lg:text-lg">Key Performance Indicators</CardTitle>
-                      <CardDescription className="text-sm">Important metrics and insights</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                          <div className="text-xl lg:text-2xl font-bold text-green-600">
-                            {statusCounts.total > 0
-                              ? Math.round((statusCounts.completed / statusCounts.total) * 100)
-                              : 0}
-                            %
-                          </div>
-                          <div className="text-xs lg:text-sm text-green-700 dark:text-green-400">Completion Rate</div>
-                        </div>
-                        <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                          <div className="text-xl lg:text-2xl font-bold text-blue-600">
-                            {jobs.filter((job) => new Date() > job.dueDate && job.status !== "completed").length}
-                          </div>
-                          <div className="text-xs lg:text-sm text-blue-700 dark:text-blue-400">Overdue Jobs</div>
-                        </div>
-                        <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                          <div className="text-xl lg:text-2xl font-bold text-orange-600">
-                            {Math.round(
-                              jobs
-                                .filter((job) => job.actualHours)
-                                .reduce((sum, job) => sum + (job.actualHours || 0), 0) /
-                                jobs.filter((job) => job.actualHours).length,
-                            ) || 0}
-                            h
-                          </div>
-                          <div className="text-xs lg:text-sm text-orange-700 dark:text-orange-400">
-                            Avg. Job Duration
-                          </div>
-                        </div>
-                        <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                          <div className="text-xl lg:text-2xl font-bold text-purple-600">
-                            {jobs.filter((job) => job.priority === "urgent").length}
-                          </div>
-                          <div className="text-xs lg:text-sm text-purple-700 dark:text-purple-400">Urgent Jobs</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Desktop Filters */}
-              <Card className="hidden lg:block">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Filter className="w-5 h-5" />
-                    Filters & Search
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <Input
-                          placeholder="Search jobs, assignees, or descriptions..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
-                    <Select value={statusFilter} onValueChange={(value: JobStatus | "all") => setStatusFilter(value)}>
-                      <SelectTrigger className="w-full md:w-48">
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="in-progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="on-hold">On Hold</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={priorityFilter}
-                      onValueChange={(value: Priority | "all") => setPriorityFilter(value)}
-                    >
-                      <SelectTrigger className="w-full md:w-48">
-                        <SelectValue placeholder="Filter by priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Priorities</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </CardContent>
               </Card>
+            ) : (
+              <div
+                className={
+                  viewMode === "grid"
+                    ? `grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"}`
+                    : "space-y-4"
+                }
+              >
+                {filteredJobs.map((job) => (
+                  <JobCard key={job.id} job={job} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-              {/* Job Cards */}
-              <Tabs defaultValue="grid" className="w-full">
-                <TabsList className="hidden lg:inline-flex">
-                  <TabsTrigger value="grid">Grid View</TabsTrigger>
-                  <TabsTrigger value="list">List View</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="grid">
-                  {/* Mobile Grid */}
-                  <div className="lg:hidden space-y-4">
-                    {filteredJobs.map((job) => {
-                      const StatusIcon = statusConfig[job.status].icon
-                      const isOverdue = new Date() > job.dueDate && job.status !== "completed"
-
-                      return (
-                        <Card
-                          key={job.id}
-                          className={`${isOverdue ? "border-red-300 bg-red-50 dark:bg-red-900/20" : ""}`}
+          <TabsContent value="analytics">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Status Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer
+                    config={{
+                      pending: { label: "Pending", color: "#6b7280" },
+                      "in-progress": { label: "In Progress", color: "#3b82f6" },
+                      completed: { label: "Completed", color: "#10b981" },
+                      "on-hold": { label: "On Hold", color: "#f59e0b" },
+                      cancelled: { label: "Cancelled", color: "#ef4444" },
+                    }}
+                    className="h-[300px]"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, value }) => `${name}: ${value}`}
                         >
-                          <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-1 flex-1">
-                                <CardTitle className="text-base leading-tight">{job.title}</CardTitle>
-                                <CardDescription className="text-xs">{job.id}</CardDescription>
-                              </div>
-                              <div className="flex items-center gap-2 ml-2">
-                                <Badge
-                                  variant="outline"
-                                  className={`${priorityConfig[job.priority].color} text-white text-xs`}
-                                >
-                                  {priorityConfig[job.priority].label}
-                                </Badge>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem>
-                                      <Edit className="w-4 h-4 mr-2" />
-                                      Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => handleDeleteClick(job.id)}
-                                      className="text-red-600"
-                                    >
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{job.description}</p>
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
 
-                            <div className="flex items-center justify-between">
-                              <Select
-                                value={job.status}
-                                onValueChange={(value: JobStatus) => updateJobStatus(job.id, value)}
-                              >
-                                <SelectTrigger className="w-28 h-8">
-                                  <div className="flex items-center gap-1">
-                                    <StatusIcon className="w-3 h-3" />
-                                    <SelectValue />
-                                  </div>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in-progress">In Progress</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                  <SelectItem value="on-hold">On Hold</SelectItem>
-                                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                                </SelectContent>
-                              </Select>
-
-                              <div className="text-right">
-                                <div className="text-sm font-medium">{job.assignee}</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">{job.department}</div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                                <Calendar className="w-3 h-3" />
-                                <span>Due: {job.dueDate.toLocaleDateString()}</span>
-                              </div>
-                              <div className="text-gray-500 dark:text-gray-400">
-                                {job.actualHours ? `${job.actualHours}h` : `Est: ${job.estimatedHours}h`}
-                              </div>
-                            </div>
-
-                            {job.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {job.tags.slice(0, 3).map((tag, index) => (
-                                  <Badge key={index} variant="secondary" className="text-xs px-2 py-0">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                                {job.tags.length > 3 && (
-                                  <Badge variant="secondary" className="text-xs px-2 py-0">
-                                    +{job.tags.length - 3}
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
-
-                            {isOverdue && (
-                              <div className="flex items-center gap-1 text-red-600 text-xs font-medium">
-                                <AlertCircle className="w-3 h-3" />
-                                Overdue
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-
-                  {/* Desktop Grid */}
-                  <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredJobs.map((job) => {
-                      const StatusIcon = statusConfig[job.status].icon
-                      const isOverdue = new Date() > job.dueDate && job.status !== "completed"
-
-                      return (
-                        <Card
-                          key={job.id}
-                          className={`relative job-card-hover ${isOverdue ? "border-red-300 bg-red-50 dark:bg-red-900/20" : ""}`}
-                        >
-                          <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-1">
-                                <CardTitle className="text-lg">{job.title}</CardTitle>
-                                <CardDescription className="text-sm">{job.id}</CardDescription>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className={`${priorityConfig[job.priority].color} text-white`}>
-                                  {priorityConfig[job.priority].label}
-                                </Badge>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{job.description}</p>
-
-                            <div className="flex items-center justify-between">
-                              <Select
-                                value={job.status}
-                                onValueChange={(value: JobStatus) => updateJobStatus(job.id, value)}
-                              >
-                                <SelectTrigger className="w-32">
-                                  <div className="flex items-center gap-2">
-                                    <StatusIcon className="w-4 h-4" />
-                                    <SelectValue />
-                                  </div>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in-progress">In Progress</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                  <SelectItem value="on-hold">On Hold</SelectItem>
-                                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                                </SelectContent>
-                              </Select>
-
-                              <div className="text-right">
-                                <div className="text-sm font-medium">{job.assignee}</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">{job.department}</div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                                <Calendar className="w-4 h-4" />
-                                <span>Due: {job.dueDate.toLocaleDateString()}</span>
-                              </div>
-                              <div className="text-gray-500 dark:text-gray-400">
-                                {job.actualHours ? `${job.actualHours}h` : `Est: ${job.estimatedHours}h`}
-                              </div>
-                            </div>
-
-                            {job.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {job.tags.map((tag, index) => (
-                                  <Badge key={index} variant="secondary" className="text-xs">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-
-                            {isOverdue && (
-                              <div className="flex items-center gap-1 text-red-600 text-sm font-medium">
-                                <AlertCircle className="w-4 h-4" />
-                                Overdue
-                              </div>
-                            )}
-
-                            {/* Action Buttons */}
-                            <div className="flex items-center justify-between pt-2 border-t">
-                              <Button variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
-                                <Edit className="w-4 h-4" />
-                                Edit
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDeleteClick(job.id)}
-                                className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Delete
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="list">
-                  <Card className="hidden lg:block">
-                    <CardHeader>
-                      <CardTitle>Job Cards List</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {filteredJobs.map((job) => {
-                          const StatusIcon = statusConfig[job.status].icon
-                          const isOverdue = new Date() > job.dueDate && job.status !== "completed"
-
-                          return (
-                            <div
-                              key={job.id}
-                              className={`flex items-center justify-between p-4 border rounded-lg ${isOverdue ? "border-red-300 bg-red-50 dark:bg-red-900/20" : "border-gray-200 dark:border-gray-700"}`}
-                            >
-                              <div className="flex items-center space-x-4">
-                                <div className={`w-3 h-3 rounded-full ${statusConfig[job.status].color}`} />
-                                <div>
-                                  <div className="font-medium">{job.title}</div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                                    {job.id} • {job.assignee} • {job.department}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-4">
-                                <Badge variant="outline" className={`${priorityConfig[job.priority].color} text-white`}>
-                                  {priorityConfig[job.priority].label}
-                                </Badge>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  Due: {job.dueDate.toLocaleDateString()}
-                                </div>
-                                <Select
-                                  value={job.status}
-                                  onValueChange={(value: JobStatus) => updateJobStatus(job.id, value)}
-                                >
-                                  <SelectTrigger className="w-32">
-                                    <div className="flex items-center gap-2">
-                                      <StatusIcon className="w-4 h-4" />
-                                      <SelectValue />
-                                    </div>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="pending">Pending</SelectItem>
-                                    <SelectItem value="in-progress">In Progress</SelectItem>
-                                    <SelectItem value="completed">Completed</SelectItem>
-                                    <SelectItem value="on-hold">On Hold</SelectItem>
-                                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <div className="flex items-center gap-2">
-                                  <Button variant="outline" size="sm">
-                                    <Edit className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDeleteClick(job.id)}
-                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </>
-          )}
-        </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Department Performance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer
+                    config={{
+                      completed: { label: "Completed", color: "#10b981" },
+                      total: { label: "Total", color: "#6b7280" },
+                    }}
+                    className="h-[300px]"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={performanceData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="department" />
+                        <YAxis />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="completed" fill="#10b981" name="Completed" />
+                        <Bar dataKey="total" fill="#6b7280" name="Total" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* Add Job Dialog */}
+      <Dialog open={isAddJobOpen} onOpenChange={setIsAddJobOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Job Card</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Job Title *</Label>
+                <Input
+                  id="title"
+                  value={newJob.title}
+                  onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
+                  placeholder="Enter job title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="assignee">Assignee</Label>
+                <Input
+                  id="assignee"
+                  value={newJob.assignee}
+                  onChange={(e) => setNewJob({ ...newJob, assignee: e.target.value })}
+                  placeholder="Assign to"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={newJob.description}
+                onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
+                placeholder="Job description"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={newJob.status}
+                  onValueChange={(value: JobCard["status"]) => setNewJob({ ...newJob, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="on-hold">On Hold</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select
+                  value={newJob.priority}
+                  onValueChange={(value: JobCard["priority"]) => setNewJob({ ...newJob, priority: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  value={newJob.department}
+                  onChange={(e) => setNewJob({ ...newJob, department: e.target.value })}
+                  placeholder="Department"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Due Date</Label>
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={newJob.dueDate}
+                  onChange={(e) => setNewJob({ ...newJob, dueDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estimatedHours">Estimated Hours</Label>
+                <Input
+                  id="estimatedHours"
+                  type="number"
+                  value={newJob.estimatedHours}
+                  onChange={(e) => setNewJob({ ...newJob, estimatedHours: Number.parseInt(e.target.value) || 0 })}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags (comma-separated)</Label>
+              <Input
+                id="tags"
+                value={newJob.tags}
+                onChange={(e) => setNewJob({ ...newJob, tags: e.target.value })}
+                placeholder="urgent, client-work, maintenance"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsAddJobOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={addJob} disabled={!newJob.title.trim()}>
+              Add Job Card
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
