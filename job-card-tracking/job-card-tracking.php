@@ -1,15 +1,19 @@
 <?php
 /**
  * Plugin Name: Job Card Tracking System
- * Plugin URI: https://yourwebsite.com/job-card-tracking
- * Description: A comprehensive real-time job card tracking system with analytics and reporting features. Includes dark/light mode, real-time updates, and advanced filtering.
+ * Plugin URI: https://carbonbros.com/job-card-tracking
+ * Description: A comprehensive real-time job card tracking system with analytics, reporting features, and auto-refresh functionality. Includes dark/light mode, real-time updates, and advanced filtering.
  * Version: 1.0.0
- * Author: Your Name
+ * Author: Carbon Bros
+ * Author URI: https://carbonbros.com
  * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: job-card-tracking
+ * Domain Path: /languages
  * Requires at least: 5.0
  * Tested up to: 6.4
  * Requires PHP: 7.4
+ * Network: false
  */
 
 // Prevent direct access

@@ -1,164 +1,224 @@
-;(($) => {
-  let currentTheme = localStorage.getItem("jct-theme") || "light"
-  let currentPage = 0
-  const itemsPerPage = 20
-  let totalItems = 0
+// Ensure jQuery is available
+const jQuery = window.jQuery
+if (!jQuery) {
+  console.error("jQuery is not defined")
+}
+
+// Ensure jct_ajax is available
+const jct_ajax = window.jct_ajax
+if (typeof jct_ajax === "undefined") {
+  console.error("jct_ajax is not defined")
+}
+
+jQuery(document).ready(($) => {
+  // Global variables
+  let currentJobs = []
+  let currentView = "grid"
+  let autoRefreshInterval = null
+  let autoRefreshCountdown = null
+  let autoRefreshTimeLeft = 0
   let isLoading = false
-  let refreshInterval
-  const jct_ajax = window.jct_ajax
 
-  $(document).ready(() => {
-    initializeTheme()
+  const currentFilters = {
+    search: "",
+    status: "all",
+    priority: "all",
+    department: "",
+  }
+
+  // Initialize
+  init()
+
+  function init() {
+    setupEventListeners()
     loadJobs()
-    bindEvents()
-    updateStats()
-    startAutoRefresh()
-  })
-
-  function initializeTheme() {
-    document.documentElement.setAttribute("data-theme", currentTheme)
-    updateThemeToggleText()
+    loadStats()
+    initializeAutoRefresh()
+    initializeTheme()
   }
 
-  function toggleTheme() {
-    currentTheme = currentTheme === "light" ? "dark" : "light"
-    document.documentElement.setAttribute("data-theme", currentTheme)
-    localStorage.setItem("jct-theme", currentTheme)
-    updateThemeToggleText()
-    showNotification("Theme switched to " + currentTheme + " mode", "info")
-  }
-
-  function updateThemeToggleText() {
-    const toggleBtn = $("#jct-theme-toggle")
-    const icon = currentTheme === "light" ? "admin-appearance" : "lightbulb"
-    toggleBtn
-      .find(".dashicons")
-      .removeClass()
-      .addClass("dashicons dashicons-" + icon)
-  }
-
-  function startAutoRefresh() {
-    const refreshRate = 30000 // 30 seconds
-
-    refreshInterval = setInterval(() => {
-      if (!isLoading && !$(".jct-modal:visible").length) {
-        loadJobs(true)
-        updateStats()
-      }
-    }, refreshRate)
-  }
-
-  function bindEvents() {
-    $(document).on("click", "#jct-theme-toggle", toggleTheme)
-
-    $(document).on("click", "#jct-create-job", () => {
-      $("#jct-create-modal").show()
-      $("#job-title").focus()
+  function setupEventListeners() {
+    // Create job modal
+    $(document).on("click", "#jct-create-job-btn", (e) => {
+      e.preventDefault()
+      $("#jct-create-job-modal").show()
+      $("#jct-job-title").focus()
     })
 
-    $(document).on("click", ".jct-close, .jct-cancel", () => {
+    // Close modal
+    $(document).on("click", ".jct-modal-close", () => {
       $(".jct-modal").hide()
-      clearForm()
+      resetCreateForm()
     })
 
-    $(document).on("submit", "#jct-create-form", (e) => {
+    // Close modal on backdrop click
+    $(document).on("click", ".jct-modal", function (e) {
+      if (e.target === this) {
+        $(this).hide()
+        resetCreateForm()
+      }
+    })
+
+    // Create job form submission
+    $(document).on("submit", ".jct-create-job-form", (e) => {
       e.preventDefault()
       createJob()
     })
 
-    $(document).on("change", ".jct-job-status", function () {
+    // Search functionality
+    let searchTimeout
+    $(document).on("input", ".jct-search-input", function () {
+      clearTimeout(searchTimeout)
+      const searchTerm = $(this).val()
+
+      searchTimeout = setTimeout(() => {
+        currentFilters.search = searchTerm
+        loadJobs()
+      }, 300)
+    })
+
+    // Filter handlers
+    $(document).on("change", ".jct-status-filter", function () {
+      currentFilters.status = $(this).val()
+      loadJobs()
+    })
+
+    $(document).on("change", ".jct-priority-filter", function () {
+      currentFilters.priority = $(this).val()
+      loadJobs()
+    })
+
+    $(document).on("input", ".jct-department-filter", function () {
+      currentFilters.department = $(this).val()
+      loadJobs()
+    })
+
+    // View toggle
+    $(document).on("click", ".jct-view-toggle", function () {
+      const view = $(this).data("view")
+      currentView = view
+
+      $(".jct-view-toggle").removeClass("active")
+      $(this).addClass("active")
+
+      renderJobs()
+    })
+
+    // Status update - FIXED
+    $(document).on("change", ".jct-status-select", function () {
       const jobId = $(this).data("job-id")
       const newStatus = $(this).val()
-      updateJobStatus(jobId, newStatus)
+      const $select = $(this)
+
+      // Store original value in case we need to revert
+      const originalStatus = $select.data("original-status") || getCurrentJobStatus(jobId)
+      $select.data("original-status", originalStatus)
+
+      updateJobStatus(jobId, newStatus, $select, originalStatus)
     })
 
-    $(document).on(
-      "input",
-      "#jct-search, #frontend-search",
-      debounce(() => {
-        currentPage = 0
-        loadJobs()
-      }, 300),
-    )
+    // Delete job
+    $(document).on("click", ".jct-delete-job", function () {
+      const jobId = $(this).data("job-id")
+      const jobTitle = $(this).data("job-title")
 
-    $(document).on(
-      "change",
-      "#jct-status-filter, #jct-priority-filter, #jct-department-filter, #frontend-status-filter, #frontend-priority-filter, #frontend-department-filter",
-      () => {
-        currentPage = 0
-        loadJobs()
-      },
-    )
-
-    $(document).on("click", "#jct-prev-page", () => {
-      if (currentPage > 0) {
-        currentPage--
-        loadJobs()
+      if (confirm('Are you sure you want to delete "' + jobTitle + '"? This action cannot be undone.')) {
+        deleteJob(jobId)
       }
     })
 
-    $(document).on("click", "#jct-next-page", () => {
-      if ((currentPage + 1) * itemsPerPage < totalItems) {
-        currentPage++
-        loadJobs()
-      }
+    // Theme toggle
+    $(document).on("click", ".jct-theme-toggle", () => {
+      toggleTheme()
     })
 
-    $(document).on("click", "#jct-refresh-jobs", () => {
-      loadJobs()
-      updateStats()
-      showNotification("Jobs refreshed successfully", "success")
+    // Auto-refresh controls
+    $(document).on("click", ".jct-auto-refresh-option", function (e) {
+      e.preventDefault()
+      const interval = Number.parseInt($(this).data("interval"))
+      setAutoRefresh(interval)
+      updateAutoRefreshUI()
+      localStorage.setItem("jct_auto_refresh", interval.toString())
+      showNotification("Auto-refresh updated to " + (interval === 0 ? "Off" : interval / 60000 + " minutes"))
     })
 
-    $(document).on("click", "#jct-export-jobs", () => {
-      $("#jct-quick-export-modal").show()
-    })
-
-    $(document).on("click", ".jct-quick-export", function () {
-      const format = $(this).data("format")
-      exportJobs(format)
-      $("#jct-quick-export-modal").hide()
-    })
-
-    $(document).on("click", ".jct-modal", function (e) {
-      if (e.target === this) {
-        $(this).hide()
-        clearForm()
-      }
-    })
-
+    // Keyboard shortcuts
     $(document).on("keydown", (e) => {
       if (e.key === "Escape") {
         $(".jct-modal").hide()
-        clearForm()
+        resetCreateForm()
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key === "n" && jct_ajax.can_edit) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "n") {
         e.preventDefault()
-        $("#jct-create-job").click()
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key === "r") {
-        e.preventDefault()
-        loadJobs()
+        $("#jct-create-job-btn").click()
       }
     })
   }
 
-  function loadJobs(silent = false) {
+  function createJob() {
+    if (isLoading) return
+
+    const $form = $(".jct-create-job-form")
+    const $submitBtn = $form.find('button[type="submit"]')
+    const originalText = $submitBtn.text()
+
+    // Validate required fields
+    const title = $("#jct-job-title").val().trim()
+    const assignee = $("#jct-job-assignee").val().trim()
+
+    if (!title || !assignee) {
+      showNotification("Title and Assignee are required fields", "error")
+      return
+    }
+
+    isLoading = true
+    $submitBtn.prop("disabled", true).text("Creating...")
+
+    const formData = {
+      action: "jct_create_job",
+      nonce: jct_ajax.nonce,
+      title: title,
+      description: $("#jct-job-description").val().trim(),
+      assignee: assignee,
+      department: $("#jct-job-department").val().trim(),
+      priority: $("#jct-job-priority").val(),
+      estimated_hours: $("#jct-job-estimated-hours").val() || 0,
+      due_date: $("#jct-job-due-date").val(),
+      tags: $("#jct-job-tags").val().trim(),
+    }
+
+    $.ajax({
+      url: jct_ajax.ajax_url,
+      type: "POST",
+      data: formData,
+      success: (response) => {
+        if (response.success) {
+          showNotification('Job "' + title + '" created successfully!', "success")
+          $("#jct-create-job-modal").hide()
+          resetCreateForm()
+          loadJobs()
+          loadStats()
+        } else {
+          showNotification("Error: " + response.data, "error")
+        }
+      },
+      error: (xhr, status, error) => {
+        console.error("AJAX Error:", error, xhr.responseText)
+        showNotification("Network error while creating job", "error")
+      },
+      complete: () => {
+        isLoading = false
+        $submitBtn.prop("disabled", false).text(originalText)
+      },
+    })
+  }
+
+  function loadJobs() {
     if (isLoading) return
 
     isLoading = true
-
-    if (!silent) {
-      $("#jct-loading").show()
-      $("#jct-jobs-container, #jct-frontend-jobs").hide()
-    }
-
-    const search = $("#jct-search, #frontend-search").val() || ""
-    const status = $("#jct-status-filter, #frontend-status-filter").val() || "all"
-    const priority = $("#jct-priority-filter, #frontend-priority-filter").val() || "all"
-    const department = $("#jct-department-filter, #frontend-department-filter").val() || ""
+    $(".jct-loading").show()
 
     $.ajax({
       url: jct_ajax.ajax_url,
@@ -166,174 +226,161 @@
       data: {
         action: "jct_get_jobs",
         nonce: jct_ajax.nonce,
-        search: search,
-        status: status,
-        priority: priority,
-        department: department,
-        limit: itemsPerPage,
-        offset: currentPage * itemsPerPage,
+        search: currentFilters.search,
+        status: currentFilters.status,
+        priority: currentFilters.priority,
+        department: currentFilters.department,
+        limit: 50,
+        offset: 0,
       },
       success: (response) => {
-        isLoading = false
-        $("#jct-loading").hide()
-
         if (response.success) {
-          totalItems = response.data.total
-          renderJobs(response.data.jobs)
-          updatePagination()
-          updateDepartmentFilter(response.data.jobs)
-
-          if (!silent) {
-            $("#jct-jobs-container, #jct-frontend-jobs").show()
-          }
+          currentJobs = response.data.jobs
+          renderJobs()
+          updateJobCount(response.data.total)
         } else {
+          console.error("Failed to load jobs:", response.data)
           showNotification("Error loading jobs: " + response.data, "error")
         }
       },
       error: (xhr, status, error) => {
+        console.error("AJAX Error:", error, xhr.responseText)
+        showNotification("Network error while loading jobs", "error")
+      },
+      complete: () => {
         isLoading = false
-        $("#jct-loading").hide()
-        showNotification("Network error loading jobs", "error")
-        console.error("AJAX Error:", error)
+        $(".jct-loading").hide()
       },
     })
   }
 
-  function renderJobs(jobs) {
-    const container = $("#jct-jobs-container, #jct-frontend-jobs")
-    const isAdmin = container.attr("id") === "jct-jobs-container"
+  function renderJobs() {
+    const $container = $(".jct-jobs-container")
 
-    container.empty()
-
-    if (jobs.length === 0) {
-      const noJobsHtml = `
-                <div class="jct-no-jobs">
-                    <div class="jct-no-jobs-icon">
-                        <span class="dashicons dashicons-clipboard"></span>
-                    </div>
-                    <h3>No Jobs Found</h3>
-                    <p>No jobs match your current search criteria.</p>
-                </div>
-            `
-      container.html(noJobsHtml)
+    if (currentJobs.length === 0) {
+      $container.html('<div class="jct-no-jobs"><p>No jobs found matching your criteria.</p></div>')
       return
     }
 
-    jobs.forEach((job) => {
-      const jobCard = createJobCard(job, isAdmin)
-      container.append(jobCard)
-    })
+    let html = ""
+
+    if (currentView === "grid") {
+      html = '<div class="jct-jobs-grid">'
+      currentJobs.forEach((job) => {
+        html += renderJobCard(job)
+      })
+      html += "</div>"
+    } else {
+      html = '<div class="jct-jobs-list">'
+      html += '<div class="jct-list-header">'
+      html += '<div class="jct-list-col">Job ID</div>'
+      html += '<div class="jct-list-col">Title</div>'
+      html += '<div class="jct-list-col">Assignee</div>'
+      html += '<div class="jct-list-col">Status</div>'
+      html += '<div class="jct-list-col">Priority</div>'
+      html += '<div class="jct-list-col">Due Date</div>'
+      html += '<div class="jct-list-col">Actions</div>'
+      html += "</div>"
+
+      currentJobs.forEach((job) => {
+        html += renderJobRow(job)
+      })
+      html += "</div>"
+    }
+
+    $container.html(html)
   }
 
-  function createJobCard(job, isAdmin = false) {
-    const isOverdue = new Date() > new Date(job.due_date) && job.status !== "completed"
-    const tags = job.tags ? job.tags.split(",") : []
-    const canEdit = jct_ajax.can_edit
-
-    const tagsHtml = tags.map((tag) => `<span class="jct-tag">${escapeHtml(tag.trim())}</span>`).join("")
-
-    const overdueHtml = isOverdue
-      ? '<div class="jct-overdue-indicator"><span class="dashicons dashicons-warning"></span> Overdue</div>'
-      : ""
-
-    const statusSelectHtml = canEdit
-      ? `
-            <select class="jct-job-status" data-job-id="${job.job_id}">
-                <option value="pending" ${job.status === "pending" ? "selected" : ""}>Pending</option>
-                <option value="in-progress" ${job.status === "in-progress" ? "selected" : ""}>In Progress</option>
-                <option value="completed" ${job.status === "completed" ? "selected" : ""}>Completed</option>
-                <option value="on-hold" ${job.status === "on-hold" ? "selected" : ""}>On Hold</option>
-                <option value="cancelled" ${job.status === "cancelled" ? "selected" : ""}>Cancelled</option>
-            </select>
-        `
-      : `<div class="jct-status-badge ${job.status}">${job.status.replace("-", " ")}</div>`
+  function renderJobCard(job) {
+    const statusClass = "jct-status-" + job.status.replace("-", "_")
+    const priorityClass = "jct-priority-" + job.priority
+    const dueDate = job.due_date ? new Date(job.due_date).toLocaleDateString() : "No due date"
+    const isOverdue = job.due_date && new Date(job.due_date) < new Date() && job.status !== "completed"
 
     return `
-            <div class="jct-job-card ${isOverdue ? "overdue" : ""}" data-job-id="${job.job_id}">
+            <div class="jct-job-card ${statusClass} ${priorityClass} ${isOverdue ? "jct-overdue" : ""}">
                 <div class="jct-job-header">
-                    <div>
-                        <h3 class="jct-job-title">${escapeHtml(job.title)}</h3>
-                        <div class="jct-job-id">${job.job_id}</div>
+                    <div class="jct-job-id">${escapeHtml(job.job_id)}</div>
+                    <div class="jct-job-actions">
+                        <button class="jct-delete-job" data-job-id="${escapeHtml(job.job_id)}" data-job-title="${escapeHtml(job.title)}" title="Delete Job">
+                            <span class="dashicons dashicons-trash"></span>
+                        </button>
                     </div>
-                    <span class="jct-priority-badge ${job.priority}">${job.priority}</span>
                 </div>
-                
-                <div class="jct-job-description">${escapeHtml(job.description || "")}</div>
-                
-                <div class="jct-job-meta">
-                    <div>
-                        <div class="jct-job-assignee">${escapeHtml(job.assignee)}</div>
-                        <div class="jct-job-department">${escapeHtml(job.department || "")}</div>
+                <div class="jct-job-content">
+                    <h3 class="jct-job-title">${escapeHtml(job.title)}</h3>
+                    <p class="jct-job-description">${escapeHtml(job.description || "No description")}</p>
+                    <div class="jct-job-meta">
+                        <div class="jct-job-assignee">
+                            <span class="dashicons dashicons-admin-users"></span>
+                            ${escapeHtml(job.assignee)}
+                        </div>
+                        <div class="jct-job-department">
+                            <span class="dashicons dashicons-building"></span>
+                            ${escapeHtml(job.department || "No department")}
+                        </div>
+                        <div class="jct-job-due-date ${isOverdue ? "jct-overdue-text" : ""}">
+                            <span class="dashicons dashicons-calendar-alt"></span>
+                            ${dueDate}
+                        </div>
                     </div>
-                    ${statusSelectHtml}
                 </div>
-                
                 <div class="jct-job-footer">
-                    <div class="jct-job-date">
-                        <span class="dashicons dashicons-calendar-alt"></span>
-                        Due: ${formatDate(job.due_date)}
-                    </div>
-                    <div class="jct-job-hours">
-                        <span class="dashicons dashicons-clock"></span>
-                        ${job.actual_hours ? Number.parseFloat(job.actual_hours) + "h" : "Est: " + Number.parseFloat(job.estimated_hours) + "h"}
+                    <select class="jct-status-select" data-job-id="${escapeHtml(job.job_id)}" data-original-status="${escapeHtml(job.status)}">
+                        <option value="pending" ${job.status === "pending" ? "selected" : ""}>Pending</option>
+                        <option value="in-progress" ${job.status === "in-progress" ? "selected" : ""}>In Progress</option>
+                        <option value="completed" ${job.status === "completed" ? "selected" : ""}>Completed</option>
+                        <option value="on-hold" ${job.status === "on-hold" ? "selected" : ""}>On Hold</option>
+                        <option value="cancelled" ${job.status === "cancelled" ? "selected" : ""}>Cancelled</option>
+                    </select>
+                    <div class="jct-job-priority jct-priority-${job.priority}">
+                        ${job.priority.charAt(0).toUpperCase() + job.priority.slice(1)}
                     </div>
                 </div>
-                
-                ${tagsHtml ? `<div class="jct-job-tags">${tagsHtml}</div>` : ""}
-                ${overdueHtml}
             </div>
         `
   }
 
-  function createJob() {
-    const formData = {
-      action: "jct_create_job",
-      nonce: jct_ajax.nonce,
-      title: $("#job-title").val().trim(),
-      description: $("#job-description").val().trim(),
-      priority: $("#job-priority").val(),
-      assignee: $("#job-assignee").val().trim(),
-      department: $("#job-department").val().trim(),
-      estimated_hours: $("#job-estimated-hours").val() || 0,
-      due_date: $("#job-due-date").val(),
-      tags: $("#job-tags").val().trim(),
-    }
+  function renderJobRow(job) {
+    const statusClass = "jct-status-" + job.status.replace("-", "_")
+    const priorityClass = "jct-priority-" + job.priority
+    const dueDate = job.due_date ? new Date(job.due_date).toLocaleDateString() : "No due date"
+    const isOverdue = job.due_date && new Date(job.due_date) < new Date() && job.status !== "completed"
 
-    if (!formData.title || !formData.assignee) {
-      showNotification("Title and Assignee are required fields", "error")
-      return
-    }
-
-    const submitBtn = $('#jct-create-form button[type="submit"]')
-    const originalText = submitBtn.html()
-    submitBtn.prop("disabled", true).html('<span class="dashicons dashicons-update-alt"></span> Creating...')
-
-    $.ajax({
-      url: jct_ajax.ajax_url,
-      type: "POST",
-      data: formData,
-      success: (response) => {
-        submitBtn.prop("disabled", false).html(originalText)
-
-        if (response.success) {
-          $("#jct-create-modal").hide()
-          clearForm()
-          loadJobs()
-          updateStats()
-          showNotification('Job "' + formData.title + '" created successfully!', "success")
-        } else {
-          showNotification("Error creating job: " + response.data, "error")
-        }
-      },
-      error: (xhr, status, error) => {
-        submitBtn.prop("disabled", false).html(originalText)
-        showNotification("Network error creating job", "error")
-        console.error("AJAX Error:", error)
-      },
-    })
+    return `
+            <div class="jct-list-row ${statusClass} ${priorityClass} ${isOverdue ? "jct-overdue" : ""}">
+                <div class="jct-list-col">${escapeHtml(job.job_id)}</div>
+                <div class="jct-list-col">${escapeHtml(job.title)}</div>
+                <div class="jct-list-col">${escapeHtml(job.assignee)}</div>
+                <div class="jct-list-col">
+                    <select class="jct-status-select" data-job-id="${escapeHtml(job.job_id)}" data-original-status="${escapeHtml(job.status)}">
+                        <option value="pending" ${job.status === "pending" ? "selected" : ""}>Pending</option>
+                        <option value="in-progress" ${job.status === "in-progress" ? "selected" : ""}>In Progress</option>
+                        <option value="completed" ${job.status === "completed" ? "selected" : ""}>Completed</option>
+                        <option value="on-hold" ${job.status === "on-hold" ? "selected" : ""}>On Hold</option>
+                        <option value="cancelled" ${job.status === "cancelled" ? "selected" : ""}>Cancelled</option>
+                    </select>
+                </div>
+                <div class="jct-list-col">
+                    <span class="jct-priority-badge jct-priority-${job.priority}">
+                        ${job.priority.charAt(0).toUpperCase() + job.priority.slice(1)}
+                    </span>
+                </div>
+                <div class="jct-list-col ${isOverdue ? "jct-overdue-text" : ""}">${dueDate}</div>
+                <div class="jct-list-col">
+                    <button class="jct-delete-job" data-job-id="${escapeHtml(job.job_id)}" data-job-title="${escapeHtml(job.title)}" title="Delete Job">
+                        <span class="dashicons dashicons-trash"></span>
+                    </button>
+                </div>
+            </div>
+        `
   }
 
-  function updateJobStatus(jobId, status) {
+  // FIXED: Status update function with proper error handling
+  function updateJobStatus(jobId, newStatus, $select, originalStatus) {
+    // Disable the select while updating
+    $select.prop("disabled", true)
+
     $.ajax({
       url: jct_ajax.ajax_url,
       type: "POST",
@@ -341,32 +388,60 @@
         action: "jct_update_job_status",
         nonce: jct_ajax.nonce,
         job_id: jobId,
-        status: status,
+        status: newStatus,
       },
       success: (response) => {
         if (response.success) {
-          updateStats()
-          showNotification("Status updated successfully", "success")
-
-          const $card = $(`.jct-job-card[data-job-id="${jobId}"]`)
-          $card.removeClass("overdue")
-
-          if (status === "completed") {
-            $card.addClass("completed")
-          }
+          // Update the original status
+          $select.data("original-status", newStatus)
+          loadJobs()
+          loadStats()
+          showNotification("Job status updated successfully!", "success")
         } else {
+          // Revert to original status
+          $select.val(originalStatus)
           showNotification("Error updating status: " + response.data, "error")
-          $(`.jct-job-status[data-job-id="${jobId}"]`).val(status)
         }
       },
       error: (xhr, status, error) => {
-        showNotification("Network error updating status", "error")
-        console.error("AJAX Error:", error)
+        console.error("AJAX Error:", error, xhr.responseText)
+        // Revert to original status
+        $select.val(originalStatus)
+        showNotification("Network error while updating job status", "error")
+      },
+      complete: () => {
+        // Re-enable the select
+        $select.prop("disabled", false)
       },
     })
   }
 
-  function updateStats() {
+  function deleteJob(jobId) {
+    $.ajax({
+      url: jct_ajax.ajax_url,
+      type: "POST",
+      data: {
+        action: "jct_delete_job",
+        nonce: jct_ajax.nonce,
+        job_id: jobId,
+      },
+      success: (response) => {
+        if (response.success) {
+          loadJobs()
+          loadStats()
+          showNotification("Job deleted successfully!", "success")
+        } else {
+          showNotification("Error: " + response.data, "error")
+        }
+      },
+      error: (xhr, status, error) => {
+        console.error("AJAX Error:", error, xhr.responseText)
+        showNotification("Network error while deleting job", "error")
+      },
+    })
+  }
+
+  function loadStats() {
     $.ajax({
       url: jct_ajax.ajax_url,
       type: "GET",
@@ -376,144 +451,69 @@
       },
       success: (response) => {
         if (response.success) {
-          const stats = response.data
-
-          $("#total-jobs, #frontend-total-jobs").text(stats.total)
-          $("#pending-jobs, #frontend-pending-jobs").text(stats.pending)
-          $("#in-progress-jobs, #frontend-in-progress-jobs").text(stats.in_progress)
-          $("#completed-jobs, #frontend-completed-jobs").text(stats.completed)
-          $("#overdue-jobs").text(stats.overdue)
-
-          updateDepartmentFilterOptions(stats.departments)
+          updateStatsDisplay(response.data)
+        } else {
+          console.error("Failed to load stats:", response.data)
         }
       },
       error: (xhr, status, error) => {
-        console.error("Error updating stats:", error)
+        console.error("AJAX Error:", error, xhr.responseText)
       },
     })
   }
 
-  function updateDepartmentFilter(jobs) {
-    const departments = [...new Set(jobs.map((job) => job.department).filter((dept) => dept))]
-    const $filter = $("#jct-department-filter, #frontend-department-filter")
-    const currentValue = $filter.val()
-
-    $filter.find("option:not(:first)").remove()
-
-    departments.forEach((dept) => {
-      $filter.append(`<option value="${escapeHtml(dept)}">${escapeHtml(dept)}</option>`)
-    })
-
-    if (currentValue && departments.includes(currentValue)) {
-      $filter.val(currentValue)
-    }
+  function updateStatsDisplay(stats) {
+    $(".jct-stat-total .jct-stat-number").text(stats.total || 0)
+    $(".jct-stat-pending .jct-stat-number").text(stats.pending || 0)
+    $(".jct-stat-in-progress .jct-stat-number").text(stats.in_progress || 0)
+    $(".jct-stat-completed .jct-stat-number").text(stats.completed || 0)
+    $(".jct-stat-overdue .jct-stat-number").text(stats.overdue || 0)
   }
 
-  function updateDepartmentFilterOptions(departments) {
-    const $filter = $("#jct-department-filter, #frontend-department-filter")
-    const currentValue = $filter.val()
-
-    $filter.find("option:not(:first)").remove()
-
-    departments.forEach((dept) => {
-      $filter.append(
-        `<option value="${escapeHtml(dept.department)}">${escapeHtml(dept.department)} (${dept.count})</option>`,
-      )
-    })
-
-    if (currentValue) {
-      $filter.val(currentValue)
-    }
+  function updateJobCount(total) {
+    $(".jct-job-count").text(total + " job" + (total !== 1 ? "s" : ""))
   }
 
-  function updatePagination() {
-    const $pagination = $("#jct-pagination")
-    const totalPages = Math.ceil(totalItems / itemsPerPage)
-
-    if (totalPages <= 1) {
-      $pagination.hide()
-      return
-    }
-
-    $pagination.show()
-
-    const startItem = currentPage * itemsPerPage + 1
-    const endItem = Math.min((currentPage + 1) * itemsPerPage, totalItems)
-    $("#jct-page-info").text(`${startItem}-${endItem} of ${totalItems} jobs`)
-
-    $("#jct-prev-page").prop("disabled", currentPage === 0)
-    $("#jct-next-page").prop("disabled", currentPage >= totalPages - 1)
+  function getCurrentJobStatus(jobId) {
+    const job = currentJobs.find((j) => j.job_id === jobId)
+    return job ? job.status : "pending"
   }
 
-  function exportJobs(format) {
-    const filters = {
-      status: $("#jct-status-filter, #frontend-status-filter").val() || "all",
-      priority: $("#jct-priority-filter, #frontend-priority-filter").val() || "all",
-      department: $("#jct-department-filter, #frontend-department-filter").val() || "",
-      search: $("#jct-search, #frontend-search").val() || "",
-    }
-
-    const params = new URLSearchParams({
-      action: "jct_export_jobs",
-      nonce: jct_ajax.nonce,
-      format: format,
-      ...filters,
-    })
-
-    const downloadUrl = jct_ajax.ajax_url + "?" + params.toString()
-
-    const link = document.createElement("a")
-    link.href = downloadUrl
-    link.download = `jobs-export-${new Date().toISOString().split("T")[0]}.${format}`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    showNotification("Export started. Download should begin shortly.", "info")
-  }
-
-  function clearForm() {
-    $("#jct-create-form")[0].reset()
-  }
-
-  function formatDate(dateString) {
-    if (!dateString) return "Not set"
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = date - now
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 0) {
-      return "Today"
-    } else if (diffDays === 1) {
-      return "Tomorrow"
-    } else if (diffDays === -1) {
-      return "Yesterday"
-    } else if (diffDays > 0 && diffDays <= 7) {
-      return `In ${diffDays} days`
-    } else if (diffDays < 0 && diffDays >= -7) {
-      return `${Math.abs(diffDays)} days ago`
-    } else {
-      return date.toLocaleDateString()
-    }
+  function resetCreateForm() {
+    $(".jct-create-job-form")[0].reset()
   }
 
   function showNotification(message, type = "info") {
     $(".jct-notification").remove()
 
-    const notification = $(`
-            <div class="jct-notification jct-notification-${type}">
+    const notificationClass =
+      type === "error"
+        ? "jct-notification-error"
+        : type === "success"
+          ? "jct-notification-success"
+          : "jct-notification-info"
+
+    const $notification = $(`
+            <div class="jct-notification ${notificationClass}">
                 ${escapeHtml(message)}
+                <button class="jct-notification-close">&times;</button>
             </div>
         `)
 
-    $("body").append(notification)
+    $("body").append($notification)
 
-    setTimeout(() => {
-      notification.fadeOut(function () {
+    // Close button handler
+    $notification.find(".jct-notification-close").on("click", () => {
+      $notification.fadeOut(function () {
         $(this).remove()
       })
-    }, 4000)
+    })
+
+    setTimeout(() => {
+      $notification.fadeOut(function () {
+        $(this).remove()
+      })
+    }, 5000)
   }
 
   function escapeHtml(text) {
@@ -528,21 +528,114 @@
     return text.replace(/[&<>"']/g, (m) => map[m])
   }
 
-  function debounce(func, wait) {
-    let timeout
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout)
-        func(...args)
-      }
-      clearTimeout(timeout)
-      timeout = setTimeout(later, wait)
+  // Theme functionality
+  function initializeTheme() {
+    const savedTheme = localStorage.getItem("jct_theme")
+    if (savedTheme === "dark") {
+      $("body").addClass("jct-dark-theme")
+      $(".jct-theme-toggle .dashicons").removeClass("dashicons-lightbulb").addClass("dashicons-moon")
     }
   }
 
+  function toggleTheme() {
+    const currentTheme = $("body").hasClass("jct-dark-theme") ? "dark" : "light"
+    const newTheme = currentTheme === "dark" ? "light" : "dark"
+
+    $("body").toggleClass("jct-dark-theme")
+    localStorage.setItem("jct_theme", newTheme)
+
+    const $icon = $(".jct-theme-toggle .dashicons")
+    if (newTheme === "dark") {
+      $icon.removeClass("dashicons-lightbulb").addClass("dashicons-moon")
+    } else {
+      $icon.removeClass("dashicons-moon").addClass("dashicons-lightbulb")
+    }
+
+    showNotification("Theme switched to " + newTheme + " mode")
+  }
+
+  // Auto-refresh functionality
+  function initializeAutoRefresh() {
+    const savedAutoRefresh = localStorage.getItem("jct_auto_refresh")
+    if (savedAutoRefresh && savedAutoRefresh !== "off") {
+      setAutoRefresh(Number.parseInt(savedAutoRefresh))
+      updateAutoRefreshUI()
+    }
+  }
+
+  function setAutoRefresh(intervalMs) {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval)
+      autoRefreshInterval = null
+    }
+    if (autoRefreshCountdown) {
+      clearInterval(autoRefreshCountdown)
+      autoRefreshCountdown = null
+    }
+
+    if (intervalMs > 0) {
+      autoRefreshTimeLeft = intervalMs / 1000
+
+      autoRefreshInterval = setInterval(() => {
+        if (!isLoading && !$(".jct-modal:visible").length) {
+          loadJobs()
+          loadStats()
+          autoRefreshTimeLeft = intervalMs / 1000
+        }
+      }, intervalMs)
+
+      autoRefreshCountdown = setInterval(() => {
+        autoRefreshTimeLeft--
+        updateCountdownDisplay()
+
+        if (autoRefreshTimeLeft <= 0) {
+          autoRefreshTimeLeft = intervalMs / 1000
+        }
+      }, 1000)
+
+      updateCountdownDisplay()
+    }
+  }
+
+  function updateAutoRefreshUI() {
+    const savedInterval = localStorage.getItem("jct_auto_refresh") || "off"
+    const $button = $(".jct-auto-refresh-btn")
+    const $indicator = $(".jct-auto-refresh-indicator")
+    const $countdown = $(".jct-auto-refresh-countdown")
+
+    if (savedInterval === "off" || savedInterval === "0") {
+      $button
+        .removeClass("active")
+        .find(".dashicons")
+        .removeClass("dashicons-controls-play")
+        .addClass("dashicons-controls-pause")
+      $indicator.hide()
+      $countdown.hide()
+    } else {
+      $button
+        .addClass("active")
+        .find(".dashicons")
+        .removeClass("dashicons-controls-pause")
+        .addClass("dashicons-controls-play")
+      $indicator.show()
+      $countdown.show()
+    }
+  }
+
+  function updateCountdownDisplay() {
+    const minutes = Math.floor(autoRefreshTimeLeft / 60)
+    const seconds = autoRefreshTimeLeft % 60
+    const display = minutes + ":" + (seconds < 10 ? "0" : "") + seconds
+    $(".jct-auto-refresh-countdown").text(display)
+  }
+
+  // Cleanup on page unload
   $(window).on("beforeunload", () => {
-    if (refreshInterval) {
-      clearInterval(refreshInterval)
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval)
+    }
+    if (autoRefreshCountdown) {
+      clearInterval(autoRefreshCountdown)
     }
   })
-})(window.jQuery)
+})
